@@ -38,4 +38,24 @@
     <string name="action_cancel">Cancelar</string>
 
     <string name="accessibility_service_description">Permite ao Assistive Menu Tool executar ações como voltar, home, recentes e bloquear tela</string>
+
+    <!-- Button Appearance -->
+    <string name="title_appearance">Tampilan Tombol</string>
+    <string name="label_shape">Bentuk</string>
+    <string name="shape_circle">Lingkaran</string>
+    <string name="shape_rounded">Kotak Rounded</string>
+    <string name="label_colors">Warna</string>
+    <string name="label_outer_color">Warna background</string>
+    <string name="label_inner_color">Warna titik tengah</string>
+    <string name="label_border">Border</string>
+    <string name="label_border_color">Warna border</string>
+    <string name="label_border_width">Ketebalan border</string>
+
+    <!-- Color picker -->
+    <string name="title_color_picker">Pilih Warna</string>
+    <string name="label_hue">Hue</string>
+    <string name="label_saturation">Saturasi</string>
+    <string name="label_brightness">Kecerahan</string>
+    <string name="label_alpha">Transparansi</string>
+    <string name="action_apply">Terapkan</string>
 </resources>

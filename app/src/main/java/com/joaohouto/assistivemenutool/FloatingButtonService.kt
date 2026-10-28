@@ -45,7 +45,13 @@ class FloatingButtonService : Service() {
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
             SettingsRepository.KEY_OPACITY     -> floatingView.alpha = settings.opacity
-            SettingsRepository.KEY_BUTTON_SIZE -> rebuildButton()
+            SettingsRepository.KEY_BUTTON_SIZE,
+            SettingsRepository.KEY_BUTTON_SHAPE,
+            SettingsRepository.KEY_OUTER_COLOR,
+            SettingsRepository.KEY_INNER_COLOR,
+            SettingsRepository.KEY_BORDER_ENABLED,
+            SettingsRepository.KEY_BORDER_COLOR,
+            SettingsRepository.KEY_BORDER_WIDTH -> rebuildButton()
         }
     }
 
@@ -108,19 +114,46 @@ class FloatingButtonService : Service() {
     }
 
     private fun buildButtonView(sizePx: Int): View {
+        val shape = settings.buttonShape
+        val outerColor = settings.outerColor
+        val innerColor = settings.innerColor
+        val borderEnabled = settings.borderEnabled
+        val borderColor = settings.borderColor
+        val borderWidthPx = dpToPx(settings.borderWidthDp)
+
+        // Corner radius: circle = half size, rounded_rect = 28% size
+        val cornerRadius = when (shape) {
+            SettingsRepository.SHAPE_CIRCLE       -> sizePx / 2f
+            SettingsRepository.SHAPE_ROUNDED_RECT -> sizePx * 0.28f
+            else                                   -> sizePx / 2f
+        }
+
         val outerBg = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.argb(204, 20, 20, 20))
+            this.shape = GradientDrawable.RECTANGLE
+            setColor(outerColor)
+            setCornerRadius(cornerRadius)
+            if (borderEnabled) {
+                setStroke(borderWidthPx, borderColor)
+            }
+        }
+
+        val innerCorner = when (shape) {
+            SettingsRepository.SHAPE_CIRCLE       -> sizePx * 0.52f / 2f
+            SettingsRepository.SHAPE_ROUNDED_RECT -> sizePx * 0.52f * 0.28f
+            else                                   -> sizePx * 0.52f / 2f
         }
         val innerBg = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.WHITE)
+            this.shape = GradientDrawable.RECTANGLE
+            setColor(innerColor)
+            setCornerRadius(innerCorner)
         }
-        val innerSizePx = (sizePx * 0.52f).toInt()
+
+        val innerSizePx = (sizePx * 0.38f).toInt()
         val innerView = View(this).apply {
             background = innerBg
             layoutParams = FrameLayout.LayoutParams(innerSizePx, innerSizePx, Gravity.CENTER)
         }
+
         return FrameLayout(this).apply {
             background = outerBg
             elevation = dpToPx(6).toFloat()
@@ -316,7 +349,6 @@ class FloatingButtonService : Service() {
             MenuAction.VOLUME_DOWN -> adjustVolume(AudioManager.ADJUST_LOWER)
             MenuAction.OPEN_APP    -> openApp()
             MenuAction.SCREENSHOT  -> {
-                // Aguarda a animação de fechamento do menu antes de capturar
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     AssistiveMenuAccessibilityService.instance?.execute(action)
                 }, SCREENSHOT_DELAY_MS)
@@ -377,13 +409,13 @@ class FloatingButtonService : Service() {
 
         const val ACTION_STOP = "com.joaohouto.assistivemenutool.STOP"
 
-        private const val NOTIFICATION_ID   = 1001
-        private const val CHANNEL_ID        = "assistive_menu_tool"
-        private const val MENU_ITEM_SIZE_DP = 90
-        private const val DRAG_THRESHOLD    = 8
-        private const val SNAP_DURATION_MS    = 260L
-        private const val MENU_SHOW_MS        = 200L
-        private const val MENU_HIDE_MS        = 150L
+        private const val NOTIFICATION_ID    = 1001
+        private const val CHANNEL_ID         = "assistive_menu_tool"
+        private const val MENU_ITEM_SIZE_DP  = 90
+        private const val DRAG_THRESHOLD     = 8
+        private const val SNAP_DURATION_MS   = 260L
+        private const val MENU_SHOW_MS       = 200L
+        private const val MENU_HIDE_MS       = 150L
         private const val SCREENSHOT_DELAY_MS = 400L
     }
 }
