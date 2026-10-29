@@ -99,10 +99,11 @@ class MainActivity : ComponentActivity() {
         val pm = packageManager
         return pm.getInstalledPackages(PackageManager.GET_META_DATA)
             .mapNotNull { pkg ->
-                val intent = pm.getLaunchIntentForPackage(pkg.packageName) ?: return@mapNotNull null
+                val intent  = pm.getLaunchIntentForPackage(pkg.packageName) ?: return@mapNotNull null
+                val appInfo = pkg.applicationInfo ?: return@mapNotNull null
                 AppInfo(
                     packageName = pkg.packageName,
-                    label       = pm.getApplicationLabel(pkg.applicationInfo).toString(),
+                    label       = pm.getApplicationLabel(appInfo).toString(),
                     icon        = try {
                         val d   = pm.getApplicationIcon(pkg.packageName)
                         val w   = d.intrinsicWidth.coerceAtLeast(1)
