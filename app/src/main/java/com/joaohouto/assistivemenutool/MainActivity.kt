@@ -584,15 +584,16 @@ private fun SizeOpacitySection(settings: SettingsRepository) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Popup Slots Section
+// Popup Slots Section — grid visual seperti favorit
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun PopupSlotsSection(settings: SettingsRepository, getInstalledApps: () -> List<AppInfo>) {
-    var slots        by remember { mutableStateOf(settings.popupSlots) }
-    var editingSlot  by remember { mutableStateOf<Int?>(null) }
-    var showAppPicker  by remember { mutableStateOf(false) }
-    var apps         by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+    var slots         by remember { mutableStateOf(settings.popupSlots) }
+    var editingSlot   by remember { mutableStateOf<Int?>(null) }
+    var showAppPicker by remember { mutableStateOf(false) }
+    var showActionPicker by remember { mutableStateOf(false) }
+    var apps          by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
 
     LaunchedEffect(showAppPicker) {
         if (showAppPicker && apps.isEmpty()) apps = getInstalledApps()
@@ -602,132 +603,195 @@ private fun PopupSlotsSection(settings: SettingsRepository, getInstalledApps: ()
         val idx = editingSlot ?: return@PopupSlotsSection
         AppPickerDialog(apps = apps, onDismiss = { showAppPicker = false; editingSlot = null },
             onPick = { app ->
-                val updated = slots.toMutableList()
-                updated[idx] = PopupSlot.fromShortcut(
+                val u = slots.toMutableList()
+                u[idx] = PopupSlot.fromShortcut(
                     AppShortcut(packageName = app.packageName, label = app.label),
                     slotIndex = idx, tileSize = slots[idx].tileSize)
-                slots = updated; settings.popupSlots = updated
+                slots = u; settings.popupSlots = u
                 showAppPicker = false; editingSlot = null
             })
     }
 
+    if (showActionPicker) {
+        val idx = editingSlot ?: return@PopupSlotsSection
+        ActionPickerDialog(onDismiss = { showActionPicker = false; editingSlot = null },
+            onPick = { action ->
+                val u = slots.toMutableList()
+                u[idx] = PopupSlot.fromAction(action, idx, slots[idx].tileSize)
+                slots = u; settings.popupSlots = u
+                showActionPicker = false; editingSlot = null
+            })
+    }
+
     ModernCard {
-        Text("${slots.filter { !it.isEmpty }.size} / 9 ${stringResource(R.string.title_popup_slots)}",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${slots.filter { !it.isEmpty }.size} / 9",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 
-        slots.forEachIndexed { idx, slot ->
-            SlotRow(
-                index       = idx, slot = slot,
-                onSetAction = { action ->
-                    val u = slots.toMutableList()
-                    u[idx] = PopupSlot.fromAction(action, idx, slot.tileSize)
-                    slots = u; settings.popupSlots = u
-                },
-                onSetShortcut = { editingSlot = idx; showAppPicker = true },
-                onClear       = {
-                    val u = slots.toMutableList()
-                    u[idx] = PopupSlot.empty(idx)
-                    slots = u; settings.popupSlots = u
-                },
-                onSizeChange  = { size ->
-                    val u = slots.toMutableList()
-                    u[idx] = slot.copy(tileSize = size)
-                    slots = u; settings.popupSlots = u
+        // Grid 3×3 visual — sama seperti favorites
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            slots.chunked(3).forEachIndexed { rowIdx, row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEachIndexed { colIdx, slot ->
+                        val idx = rowIdx * 3 + colIdx
+                        PopupSlotCard(
+                            slot         = slot,
+                            modifier     = Modifier.weight(1f),
+                            onTap        = { editingSlot = idx },
+                            onSetAction  = { editingSlot = idx; showActionPicker = true },
+                            onSetApp     = { editingSlot = idx; showAppPicker = true },
+                            onClear      = {
+                                val u = slots.toMutableList()
+                                u[idx] = PopupSlot.empty(idx)
+                                slots = u; settings.popupSlots = u
+                            },
+                            onSizeChange = { size ->
+                                val u = slots.toMutableList()
+                                u[idx] = slot.copy(tileSize = size)
+                                slots = u; settings.popupSlots = u
+                            }
+                        )
+                    }
                 }
-            )
-            if (idx < 8) ModernDivider(Modifier.padding(vertical = 2.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun SlotRow(index: Int, slot: PopupSlot,
-    onSetAction: (MenuAction) -> Unit, onSetShortcut: () -> Unit,
-    onClear: () -> Unit, onSizeChange: (Int) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    var showActionPicker by remember { mutableStateOf(false) }
-    val chevronAngle by animateFloatAsState(if (expanded) 180f else 0f, tween(200), label = "chevron")
+private fun PopupSlotCard(
+    slot: PopupSlot,
+    modifier: Modifier = Modifier,
+    onTap: () -> Unit,
+    onSetAction: () -> Unit,
+    onSetApp: () -> Unit,
+    onClear: () -> Unit,
+    onSizeChange: (Int) -> Unit
+) {
+    var showOptions by remember { mutableStateOf(false) }
 
-    if (showActionPicker) {
-        ActionPickerDialog(onDismiss = { showActionPicker = false },
-            onPick = { action -> onSetAction(action); showActionPicker = false })
-    }
-
-    Column {
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-            .clickable { expanded = !expanded }.padding(vertical = 10.dp, horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-
-            // Index badge
-            Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center) {
-                Text("${index + 1}", style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.width(12.dp))
-
-            Column(Modifier.weight(1f)) {
+    if (showOptions) {
+        AlertDialog(
+            onDismissRequest = { showOptions = false },
+            title = {
                 Text(
                     text = when (slot.type) {
-                        PopupSlot.SlotType.ACTION -> slot.action?.name
+                        PopupSlot.SlotType.ACTION   -> slot.action?.name
                             ?.replace('_', ' ')?.lowercase()?.replaceFirstChar { it.uppercase() }
                             ?: stringResource(R.string.slot_empty)
-                        PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label
-                            ?: slot.shortcut?.packageName ?: stringResource(R.string.slot_empty)
-                        else -> stringResource(R.string.slot_empty)
-                    },
-                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium
+                        PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label ?: stringResource(R.string.slot_empty)
+                        else -> "Slot ${stringResource(R.string.slot_empty)}"
+                    }
                 )
-                Text(
-                    text = when (slot.type) {
-                        PopupSlot.SlotType.ACTION   -> "${stringResource(R.string.slot_type_action)} · ${slot.tileSize}×${slot.tileSize}"
-                        PopupSlot.SlotType.SHORTCUT -> "${stringResource(R.string.slot_type_shortcut)} · ${slot.tileSize}×${slot.tileSize}"
-                        else -> stringResource(R.string.slot_empty)
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Icon(painter = painterResource(R.drawable.ic_volume_down),
-                contentDescription = null, modifier = Modifier.size(16.dp).rotate(chevronAngle),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        AnimatedVisibility(visible = expanded,
-            enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-            Column(Modifier.padding(start = 44.dp, bottom = 8.dp, end = 4.dp)) {
-                Text(stringResource(R.string.label_tile_size),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(6.dp))
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3)
-                        .forEachIndexed { i, (size, res) ->
-                            SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 3),
-                                onClick = { onSizeChange(size) }, selected = slot.tileSize == size) {
-                                Text(stringResource(res), style = MaterialTheme.typography.labelSmall)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Tile size
+                    Text(stringResource(R.string.label_tile_size),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3)
+                            .forEachIndexed { i, (size, res) ->
+                                SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 3),
+                                    onClick = { onSizeChange(size) }, selected = slot.tileSize == size) {
+                                    Text(stringResource(res), style = MaterialTheme.typography.labelSmall)
+                                }
                             }
+                    }
+                    // Change content
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { onSetAction(); showOptions = false },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)) {
+                            Text(stringResource(R.string.slot_type_action),
+                                style = MaterialTheme.typography.labelSmall)
                         }
+                        OutlinedButton(onClick = { onSetApp(); showOptions = false },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)) {
+                            Text(stringResource(R.string.action_choose_app),
+                                style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = { showActionPicker = true }, modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
-                        Text(stringResource(R.string.slot_type_action), style = MaterialTheme.typography.labelSmall)
+            },
+            confirmButton = {
+                TextButton(onClick = { showOptions = false }) {
+                    Text(stringResource(R.string.action_apply))
+                }
+            },
+            dismissButton = {
+                if (!slot.isEmpty) {
+                    TextButton(onClick = { onClear(); showOptions = false },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error)) {
+                        Text(stringResource(R.string.action_clear_slot))
                     }
-                    OutlinedButton(onClick = onSetShortcut, modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
-                        Text(stringResource(R.string.action_choose_app), style = MaterialTheme.typography.labelSmall)
-                    }
-                    if (!slot.isEmpty) {
-                        OutlinedButton(onClick = { onClear(); expanded = false },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                            Text(stringResource(R.string.action_clear_slot), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        )
+    }
+
+    Surface(
+        shape    = RoundedCornerShape(16.dp),
+        color    = if (slot.isEmpty) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                   else MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp))
+            .clickable { if (slot.isEmpty) onSetAction() else showOptions = true }
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (slot.isEmpty) {
+                // Slot kosong — tampil subtle tanpa tombol +
+                Icon(painter = painterResource(R.drawable.ic_circle_outline),
+                    contentDescription = null, modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(6.dp)) {
+                    // Icon
+                    Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center) {
+                        when (slot.type) {
+                            PopupSlot.SlotType.ACTION -> slot.action?.let {
+                                Icon(painter = painterResource(it.iconRes()),
+                                    contentDescription = null, modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimary)
+                            }
+                            PopupSlot.SlotType.SHORTCUT -> {
+                                Text(
+                                    text = (slot.shortcut?.label ?: slot.shortcut?.packageName ?: "?")
+                                        .firstOrNull()?.uppercase() ?: "?",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            else -> {}
                         }
+                    }
+                    Spacer(Modifier.height(5.dp))
+                    // Label
+                    Text(
+                        text = when (slot.type) {
+                            PopupSlot.SlotType.ACTION -> slot.action?.name
+                                ?.replace('_', ' ')?.lowercase()?.replaceFirstChar { it.uppercase() } ?: ""
+                            PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label
+                                ?: slot.shortcut?.packageName?.substringAfterLast('.') ?: ""
+                            else -> ""
+                        },
+                        style    = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        color    = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    // Tile size badge
+                    if (slot.tileSize > 1) {
+                        Text("${slot.tileSize}×${slot.tileSize}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            fontSize = 9.sp)
                     }
                 }
             }

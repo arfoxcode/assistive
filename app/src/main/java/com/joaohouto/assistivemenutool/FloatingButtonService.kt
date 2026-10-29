@@ -267,21 +267,25 @@ class FloatingButtonService : Service() {
         return overlay
     }
 
-    // ── Menu panel dengan mixed-size grid ────────────────────────────────────
+    // ── Menu panel — modern grid, slot kosong tidak ditampilkan ─────────────
 
     private fun buildMenuPanel(): View {
+        // Hanya slot yang terisi
         val slots = settings.popupSlots.filter { !it.isEmpty }
 
+        // Panel background: dark glass
         val bg = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dpToPx(20).toFloat()
-            setColor(Color.argb(235, 28, 28, 30))
+            shape        = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(28).toFloat()
+            setColor(Color.argb(245, 22, 22, 26))
         }
 
+        val pad = dpToPx(14)
         val container = FrameLayout(this).apply {
             background = bg
-            val p = dpToPx(12)
-            setPadding(p, p, p, p)
+            setPadding(pad, pad, pad, pad)
+            // Soft shadow via elevation
+            elevation = dpToPx(12).toFloat()
         }
 
         val gridView = buildMixedGrid(slots)
@@ -290,20 +294,20 @@ class FloatingButtonService : Service() {
     }
 
     /**
-     * Grid 3 kolom dengan tile yang bisa span 1×1, 2×2, atau 3×3.
-     * Algoritma: scan cell per cell, skip cell yang sudah dipakai tile besar.
+     * Grid 3 kolom, slot kosong dilewati.
+     * Tile 2×2 dan 3×3 span beberapa cell.
+     * Gap antar tile sebesar GAP_DP.
      */
     private fun buildMixedGrid(slots: List<PopupSlot>): View {
-        val cellDp  = MENU_ITEM_SIZE_DP
-        val cellPx  = dpToPx(cellDp)
-        val cols    = 3
-        val rows    = 3
+        val cellPx   = dpToPx(MENU_ITEM_SIZE_DP)
+        val gapPx    = dpToPx(GAP_DP)
+        val cols     = 3
+        val rows     = 3
+        val totalPx  = cellPx * cols + gapPx * (cols - 1)
         val occupied = Array(rows) { BooleanArray(cols) }
 
-        // RelativeLayout untuk positioning manual
         val grid = android.widget.RelativeLayout(this).apply {
-            val size = cellPx * cols
-            layoutParams = LinearLayout.LayoutParams(size, size)
+            layoutParams = LinearLayout.LayoutParams(totalPx, totalPx)
         }
 
         var slotIdx = 0
@@ -313,23 +317,18 @@ class FloatingButtonService : Service() {
                 val slot = slots.getOrNull(slotIdx) ?: break
                 slotIdx++
 
-                val size    = slot.tileSize.coerceIn(1, 3)
-                val maxSpan = minOf(size, cols - col, rows - row)
-                val span    = maxSpan
+                val span = slot.tileSize.coerceIn(1, minOf(3, cols - col, rows - row))
 
-                // Tandai cell yang dipakai
-                for (r in row until row + span) {
-                    for (c in col until col + span) {
+                for (r in row until row + span)
+                    for (c in col until col + span)
                         if (r < rows && c < cols) occupied[r][c] = true
-                    }
-                }
 
-                val tilePx  = cellPx * span
+                val tilePx = cellPx * span + gapPx * (span - 1)
                 val tileView = buildTileView(slot, tilePx)
 
                 val lp = android.widget.RelativeLayout.LayoutParams(tilePx, tilePx).apply {
-                    leftMargin = col * cellPx
-                    topMargin  = row * cellPx
+                    leftMargin = col * (cellPx + gapPx)
+                    topMargin  = row * (cellPx + gapPx)
                 }
                 tileView.layoutParams = lp
                 grid.addView(tileView)
@@ -339,32 +338,39 @@ class FloatingButtonService : Service() {
     }
 
     private fun buildTileView(slot: PopupSlot, sizePx: Int): View {
-        val iconSize = (sizePx * 0.52f).toInt()
-        val iconPad  = (sizePx * 0.14f).toInt()
-        val margin   = dpToPx(4)
+        val isLarge  = sizePx > dpToPx(MENU_ITEM_SIZE_DP)
+        val iconSize = (sizePx * 0.46f).toInt()
+        val iconPad  = (sizePx * 0.13f).toInt()
+        val corner   = dpToPx(18).toFloat()
+        val margin   = dpToPx(3)
 
-        val iconBg = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.argb(75, 255, 255, 255))
+        // Tile background: frosted dark surface
+        val tileBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = corner
+            setColor(Color.argb(80, 255, 255, 255))
+        }
+
+        // Icon container: lebih besar, rounded square bukan circle
+        val iconContainerBg = GradientDrawable().apply {
+            shape        = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(12).toFloat()
+            setColor(Color.argb(60, 255, 255, 255))
         }
 
         val icon = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(iconPad, iconPad, iconPad, iconPad)
-            background = iconBg
+            background = iconContainerBg
             layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
                 .also { it.gravity = Gravity.CENTER_HORIZONTAL }
 
             when (slot.type) {
-                PopupSlot.SlotType.ACTION -> {
-                    slot.action?.let {
-                        setImageResource(it.iconRes())
-                        setColorFilter(Color.WHITE)
-                    }
+                PopupSlot.SlotType.ACTION -> slot.action?.let {
+                    setImageResource(it.iconRes())
+                    setColorFilter(Color.WHITE)
                 }
-                PopupSlot.SlotType.SHORTCUT -> {
-                    loadShortcutIcon(this, slot.shortcut)
-                }
+                PopupSlot.SlotType.SHORTCUT -> loadShortcutIcon(this, slot.shortcut)
                 else -> {}
             }
         }
@@ -377,24 +383,28 @@ class FloatingButtonService : Service() {
         }
 
         val label = TextView(this).apply {
-            text     = labelText
-            textSize = if (sizePx > dpToPx(MENU_ITEM_SIZE_DP)) 12f else 10f
+            text      = labelText
+            textSize  = if (isLarge) 13f else 11f
             setTextColor(Color.WHITE)
-            gravity  = Gravity.CENTER
-            maxLines = 1
+            gravity   = Gravity.CENTER
+            maxLines  = 1
+            // Sedikit bold supaya terbaca di atas background gelap
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
-                .also { it.gravity = Gravity.CENTER_HORIZONTAL; it.topMargin = dpToPx(4) }
+                .also { it.gravity = Gravity.CENTER_HORIZONTAL; it.topMargin = dpToPx(6) }
         }
 
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity     = Gravity.CENTER
+            background  = tileBg
             setPadding(margin, margin, margin, margin)
             addView(icon)
             addView(label)
             setOnClickListener {
-                animate().scaleX(0.88f).scaleY(0.88f).setDuration(70).withEndAction {
-                    animate().scaleX(1f).scaleY(1f).setDuration(70).start()
+                // Animasi press — scale down + ripple feel
+                animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).withEndAction {
+                    animate().scaleX(1f).scaleY(1f).setDuration(100).start()
                 }.start()
                 onSlotClick(slot)
             }
@@ -680,7 +690,8 @@ class FloatingButtonService : Service() {
 
         private const val NOTIFICATION_ID     = 1001
         private const val CHANNEL_ID          = "assistive_menu_tool"
-        const val MENU_ITEM_SIZE_DP           = 90
+        const val MENU_ITEM_SIZE_DP           = 86
+        const val GAP_DP                      = 8
         private const val DRAG_THRESHOLD      = 8
         private const val SNAP_DURATION_MS    = 260L
         private const val MENU_SHOW_MS        = 200L
