@@ -103,7 +103,9 @@ class MainActivity : ComponentActivity() {
                 val appInfo = pkg.applicationInfo ?: return@mapNotNull null
                 AppInfo(
                     packageName = pkg.packageName,
-                    label       = pm.getApplicationLabel(appInfo).toString(),
+                    // SESUDAH — aman, skip package yang applicationInfo-nya null
+                    val appInfo = pkg.applicationInfo ?: return@mapNotNull null
+                    label = pm.getApplicationLabel(appInfo).toString(),
                     icon        = try {
                         val d   = pm.getApplicationIcon(pkg.packageName)
                         val w   = d.intrinsicWidth.coerceAtLeast(1)
