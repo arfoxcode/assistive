@@ -94,20 +94,33 @@ class MainActivity : ComponentActivity() {
         return enabled.contains(packageName, ignoreCase = true)
     }
 
-    // FIX: cukup satu kondisi — semua app yang punya launcher intent
+    // Gunakan queryIntentActivities — lebih reliable untuk semua app launcher di API 30+
     private fun getInstalledApps(): List<AppInfo> {
         val pm = packageManager
-        return pm.getInstalledPackages(PackageManager.GET_META_DATA)
-            .mapNotNull { pkg ->
-                val intent  = pm.getLaunchIntentForPackage(pkg.packageName) ?: return@mapNotNull null
-                val appInfo = pkg.applicationInfo ?: return@mapNotNull null
+        val launcherIntent = Intent(Intent.ACTION_MAIN).also {
+            it.addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+        val flag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M)
+            PackageManager.MATCH_ALL else 0
+
+        return pm.queryIntentActivities(launcherIntent, flag)
+            .mapNotNull { resolveInfo ->
+                val ai = resolveInfo.activityInfo?.applicationInfo ?: return@mapNotNull null
+                val pkg = ai.packageName
+                // Skip package sendiri
+                if (pkg == packageName) return@mapNotNull null
                 AppInfo(
+<<<<<<< HEAD
                     packageName = pkg.packageName,
                     // SESUDAH — aman, skip package yang applicationInfo-nya null
                     val appInfo = pkg.applicationInfo ?: return@mapNotNull null
                     label = pm.getApplicationLabel(appInfo).toString(),
+=======
+                    packageName = pkg,
+                    label       = pm.getApplicationLabel(ai).toString(),
+>>>>>>> 1459a69 (fixed favourite button)
                     icon        = try {
-                        val d   = pm.getApplicationIcon(pkg.packageName)
+                        val d   = pm.getApplicationIcon(pkg)
                         val w   = d.intrinsicWidth.coerceAtLeast(1)
                         val h   = d.intrinsicHeight.coerceAtLeast(1)
                         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -115,6 +128,7 @@ class MainActivity : ComponentActivity() {
                     } catch (_: Exception) { null }
                 )
             }
+            .distinctBy { it.packageName }
             .sortedBy { it.label.lowercase() }
     }
 }
