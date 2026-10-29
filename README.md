@@ -1,153 +1,171 @@
-# Assistive Menu Tool
+Assistive Menu Tool
 
-Botão flutuante de acessibilidade para Android. Exibe um botão arrastável sobre qualquer tela que, ao ser tocado, abre um menu com ações rápidas do sistema — similar ao recurso de acessibilidade disponível em outros sistemas operacionais móveis.
+A floating accessibility button for Android. It displays a draggable button over any screen that opens a menu of quick system actions when tapped, similar to accessibility features available on other mobile operating systems.
 
 ---
 
 <p align="center">
-  <img src="docs/feature_graphic.jpg" width="100%" alt="Assistive Touch Banner" />
-</p>
-
-<p align="center">
+  <img src="docs/feature_graphic.jpg" width="100%" alt="Assistive Menu Tool Banner" />
+</p><p align="center">
   <a href="https://f-droid.org/packages/com.joaohouto.assistivemenutool/" target="_blank">
-    <img src="https://img.shields.io/badge/F--Droid-Dispon%C3%ADvel-1976D2?style=for-the-badge&logo=f-droid&logoColor=white" alt="F-Droid" />
+    <img src="https://img.shields.io/badge/F--Droid-Available-1976D2?style=for-the-badge&logo=f-droid&logoColor=white" alt="F-Droid" />
   </a>
   <a href="https://joaohouto.github.io/assistive/" target="_blank">
-    <img src="https://img.shields.io/badge/Site%20Oficial-Acessar-black?style=for-the-badge" alt="Site Oficial" />
+    <img src="https://img.shields.io/badge/Official%20Website-Visit-black?style=for-the-badge" alt="Official Website" />
   </a>
-</p>
+</p>---
+
+Features
+
+- Floating Button - Draggable across the screen.
+- Automatic Edge Snapping - Automatically snaps to the nearest screen edge when released.
+- Expandable Menu - Smooth scale and fade animations.
+- 10 Available Actions - Configurable by the user.
+
+Action| Description
+Home| Returns to the home screen.
+Back| Performs the Back action.
+Recent Apps| Opens the recent apps screen.
+Lock Screen| Locks the screen (Android 9+).
+Volume Up| Increases the volume.
+Volume Down| Decreases the volume.
+Screenshot| Captures the screen (Android 9+).
+Notifications| Opens the notification shade.
+Quick Settings| Opens the system quick settings panel.
+Settings| Opens the app's settings screen.
+
+Customization
+
+- Button Opacity - Adjust the floating button's opacity from 30% to 100%.
+- Button Size - Choose between Small, Medium, and Large.
+- Menu Actions - Select which actions appear in the menu.
+- Custom App Logo - Customize the app's logo to personalize its appearance.
+- Favorite Apps - Add favorite apps for quick access directly from the assistive menu.
+
+Settings are stored persistently using "SharedPreferences".
 
 ---
 
-## Funcionalidades
+Requirements
 
-- **Botão flutuante** arrastável por toda a tela
-- **Snap automático** para a borda mais próxima ao soltar
-- **Menu expansível** com animação de escala + fade
-- **10 ações disponíveis**, configuráveis pelo usuário:
-
-| Ação          | Descrição                         |
-| ------------- | --------------------------------- |
-| Início        | Vai para a tela inicial           |
-| Voltar        | Equivale ao botão Voltar          |
-| Recentes      | Abre apps recentes                |
-| Bloquear      | Bloqueia a tela (Android 9+)      |
-| Volume +      | Aumenta o volume                  |
-| Volume −      | Diminui o volume                  |
-| Screenshot    | Captura a tela (Android 9+)       |
-| Notificações  | Abre a gaveta de notificações     |
-| Painel Rápido | Abre as configurações rápidas     |
-| Configurar    | Abre o app para ajustar as opções |
-
-- **Configurações persistentes** (SharedPreferences):
-  - Opacidade do botão (30 % – 100 %)
-  - Tamanho do botão (Pequeno / Médio / Grande)
-  - Seleção das ações exibidas no menu
+Item| Value
+Minimum Android Version| Android 7.0 (API 24)
+Target Android Version| Android 15 (API 36)
+Kotlin| 2.2.10
+UI Framework| Jetpack Compose + Material 3
 
 ---
 
-## Requisitos
+Required Permissions
 
-| Item           | Valor                        |
-| -------------- | ---------------------------- |
-| Android mínimo | 7.0 (API 24)                 |
-| Android alvo   | 15 (API 36)                  |
-| Kotlin         | 2.2.10                       |
-| UI             | Jetpack Compose + Material 3 |
+The app requires two special permissions that must be granted manually.
 
----
+1. Display Over Other Apps ("SYSTEM_ALERT_WINDOW")
 
-## Permissões necessárias
+Allows the floating button to appear over other applications.
 
-O app solicita duas permissões especiais que precisam ser concedidas manualmente:
+Path: Settings → Apps → Assistive Menu Tool → Display over other apps
 
-### 1. Sobreposição de apps (`SYSTEM_ALERT_WINDOW`)
+2. Accessibility Service ("BIND_ACCESSIBILITY_SERVICE")
 
-Permite que o botão flutuante apareça sobre outros aplicativos.
-→ **Configurações › Apps › Assistive Menu Tool › Aparecer na parte superior**
+Allows the app to perform global system actions such as Home, Back, Recent Apps, Lock Screen, and Screenshot.
 
-### 2. Serviço de acessibilidade (`BIND_ACCESSIBILITY_SERVICE`)
+Path: Settings → Accessibility → Assistive Menu Tool → Enable
 
-Permite executar ações globais do sistema (Home, Voltar, Recentes, Bloquear, Screenshot).
-→ **Configurações › Acessibilidade › Assistive Menu Tool › Ativar**
-
-> O app guia o usuário pelas duas permissões na tela principal.
+«The app guides users through both permission settings from the main screen.»
 
 ---
 
-## Arquitetura
+Architecture
 
-```
 app/src/main/java/com/joaohouto/assistivemenutool/
-├── MainActivity.kt                    # Tela principal (permissões + configurações)
-├── FloatingButtonService.kt           # Foreground Service — overlay WindowManager
-├── AssistiveMenuAccessibilityService.kt # AccessibilityService — ações globais
-├── MenuAction.kt                      # Enum com todas as ações disponíveis
-├── SettingsRepository.kt              # Persistência via SharedPreferences
-└── ui/theme/                          # Jetpack Compose Material 3 theme
-```
+├── MainActivity.kt
+├── FloatingButtonService.kt
+├── AssistiveMenuAccessibilityService.kt
+├── MenuAction.kt
+├── SettingsRepository.kt
+└── ui/theme/
 
-### Componentes principais
+Main Components
 
-**`FloatingButtonService`**
+"FloatingButtonService"
 
-- Adiciona o botão ao `WindowManager` com `TYPE_APPLICATION_OVERLAY`
-- Gerencia arrastar, soltar e snap animado para a borda
-- Abre/fecha o menu com animação de escala
-- Ouve mudanças de configurações em tempo real via `OnSharedPreferenceChangeListener`
-- Ações de volume via `AudioManager`; Screenshot com delay de 400 ms
+- Adds the floating button to "WindowManager" using "TYPE_APPLICATION_OVERLAY".
+- Handles dragging, releasing, and animated snapping to the nearest screen edge.
+- Opens and closes the menu with scale animations.
+- Listens for settings changes in real time using "OnSharedPreferenceChangeListener".
+- Handles volume actions through "AudioManager" and screenshot actions with a 400 ms delay.
 
-**`AssistiveMenuAccessibilityService`**
+"AssistiveMenuAccessibilityService"
 
-- Executa `performGlobalAction()` para Home, Voltar, Recentes, Bloquear, Screenshot, Notificações e Painel Rápido
-- Expõe `instance` via companion object para comunicação com o `FloatingButtonService`
+- Uses "performGlobalAction()" to execute system actions, including Home, Back, Recent Apps, Lock Screen, Screenshot, Notifications, and Quick Settings.
+- Exposes an "instance" through a companion object for communication with "FloatingButtonService".
 
-**`SettingsRepository`**
+"SettingsRepository"
 
-- Wrapper de `SharedPreferences` com propriedades tipadas (`opacity`, `buttonSizeDp`, `menuActions`)
-- `menuActions` serializado como CSV de nomes do enum
+- Wraps "SharedPreferences" with typed properties such as "opacity", "buttonSizeDp", and "menuActions".
+- Serializes "menuActions" as a CSV string containing enum names.
 
 ---
 
-## Build & Release
+Build & Release
 
-### Debug
+Debug Build
 
-Abra o projeto no Android Studio e clique em **Run**.
+Open the project in Android Studio and click Run to build and launch the debug version.
 
-### Release
+Alternatively, run:
 
-1. Gere um keystore de assinatura:
-   ```bash
+./gradlew assembleDebug
+
+Release Build
+
+1. Generate a signing keystore:
+   
    keytool -genkey -v -keystore release.jks -alias amt -keyalg RSA -keysize 2048 -validity 10000
-   ```
-2. Configure a assinatura em `app/build.gradle.kts`:
-   ```kotlin
-   signingConfigs {
-       create("release") {
-           storeFile = file("release.jks")
-           storePassword = "..."
-           keyAlias = "amt"
-           keyPassword = "..."
-       }
-   }
-   ```
-3. Gere o APK/AAB:
-   ```bash
-   ./gradlew bundleRelease   # AAB para Google Play
-   ./gradlew assembleRelease # APK direto
-   ```
 
-> O build de release tem R8 (`isMinifyEnabled = true`) e remoção de recursos não utilizados (`isShrinkResources = true`) ativados.
+2. Configure signing in "app/build.gradle.kts":
+   
+   signingConfigs {
+    create("release") {
+        storeFile = file("release.jks")
+        storePassword = "..."
+        keyAlias = "amt"
+        keyPassword = "..."
+    }
+}
+
+3. Generate the APK or AAB:
+   
+   ./gradlew assembleRelease
+./gradlew bundleRelease
+
+- "assembleRelease" generates a release APK.
+- "bundleRelease" generates an Android App Bundle (AAB) for Google Play.
+
+«The release build enables R8 code shrinking ("isMinifyEnabled = true") and unused resource removal ("isShrinkResources = true").»
 
 ---
 
-## Licença
+Credits
 
-```
+This project is based on the original Assistive Menu Tool project by João Couto.
+
+The original project and its contributors retain their respective copyrights. Modifications, additional features, and other contributions should be attributed to their respective authors.
+
+Original repository: https://github.com/joaohouto/assistive
+
+---
+
+License
+
+This project uses the MIT License. The original copyright and license notices must be retained in accordance with the license terms.
+
 MIT License
 
 Copyright (c) 2026 João Couto
+Copyright (c) 2026 arfoxcode
+
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -166,4 +184,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
