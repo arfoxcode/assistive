@@ -1,3 +1,4 @@
+
 name: Build & Release
 
 on:
@@ -7,8 +8,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.5)'
+        description: 'Existing release tag (e.g. v1.5)'
         required: true
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -16,69 +21,78 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Checkout ────────────────────────────────────────────────────────
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Validate tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
 
-      # ── 2. Java 17 ─────────────────────────────────────────────────────────
+          if ! [[ "$TAG" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "Invalid tag: $TAG (example: v1.5)"
+            exit 1
+          fi
+
+          echo "name=$TAG" >> "$GITHUB_OUTPUT"
+        id: tag
+
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.name }}
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'temurin'
+          distribution: temurin
           cache: gradle
 
-      # ── 3. Gradle permission ───────────────────────────────────────────────
-      - name: Grant execute permission for gradlew
+      - name: Grant execute permission
         run: chmod +x gradlew
 
-      # ── 4. Decode keystore dari GitHub Secret ──────────────────────────────
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > $GITHUB_WORKSPACE/release.jks
-          # Validasi: file JKS harus mulai dengan magic bytes 0xFEEDFEED
-          file $GITHUB_WORKSPACE/release.jks
+          set -e
+          test -n "$KEYSTORE_BASE64"
+          printf '%s' "$KEYSTORE_BASE64" |
+            base64 --decode > "$GITHUB_WORKSPACE/release.jks"
+          test -s "$GITHUB_WORKSPACE/release.jks"
+          file "$GITHUB_WORKSPACE/release.jks"
 
-      # ── 5. Build release APK ───────────────────────────────────────────────
       - name: Build release APK
         env:
-          KEYSTORE_PATH:  ${{ github.workspace }}/release.jks
-          KEY_ALIAS:      ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PATH: ${{ github.workspace }}/release.jks
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD:   ${{ secrets.KEY_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon
 
-      # ── 6. Build release AAB ───────────────────────────────────────────────
       - name: Build release AAB
         env:
-          KEYSTORE_PATH:  ${{ github.workspace }}/release.jks
-          KEY_ALIAS:      ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PATH: ${{ github.workspace }}/release.jks
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD:   ${{ secrets.KEY_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew bundleRelease --no-daemon
 
-      # ── 7. Tentukan nama tag ───────────────────────────────────────────────
-      - name: Resolve tag name
-        id: tag
+      - name: Rename output files
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "name=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      # ── 8. Rename output files ─────────────────────────────────────────────
-      - name: Rename artifacts
-        run: |
-          TAG=${{ steps.tag.outputs.name }}
+          set -e
           mv app/build/outputs/apk/release/app-release.apk \
-             app/build/outputs/apk/release/assistive-menu-tool-${TAG}.apk
+            "app/build/outputs/apk/release/assistive-menu-tool-${TAG}.apk"
           mv app/build/outputs/bundle/release/app-release.aab \
-             app/build/outputs/bundle/release/assistive-menu-tool-${TAG}.aab
+            "app/build/outputs/bundle/release/assistive-menu-tool-${TAG}.aab"
 
-      # ── 9. Upload APK sebagai Actions artifact ─────────────────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -86,7 +100,6 @@ jobs:
           path: app/build/outputs/apk/release/assistive-menu-tool-${{ steps.tag.outputs.name }}.apk
           retention-days: 30
 
-      # ── 10. Upload AAB sebagai Actions artifact ────────────────────────────
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
@@ -94,35 +107,33 @@ jobs:
           path: app/build/outputs/bundle/release/assistive-menu-tool-${{ steps.tag.outputs.name }}.aab
           retention-days: 30
 
-      # ── 11. Buat GitHub Release + lampirkan APK & AAB ─────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
-          name: "Assistive Menu Tool ${{ steps.tag.outputs.name }}"
+          name: Assistive Menu Tool ${{ steps.tag.outputs.name }}
           body: |
             ## Assistive Menu Tool ${{ steps.tag.outputs.name }}
 
             ### Download
-            - **APK** — install langsung di Android (sideload)
-            - **AAB** — untuk upload ke Google Play
+            - **APK**: install langsung di Android (sideload)
+            - **AAB**: untuk upload ke Google Play
 
             ### Changelog
-            _Update changelog di sini sebelum push tag._
+            Perubahan versi ini: isi sesuai perubahan aktual.
 
             ### Verifikasi APK
-            ```
-            sha256sum assistive-menu-tool-${{ steps.tag.outputs.name }}.apk
-            ```
+            Jalankan:
+            `sha256sum assistive-menu-tool-${{ steps.tag.outputs.name }}.apk`
           draft: false
           prerelease: false
+          overwrite_files: true
           files: |
             app/build/outputs/apk/release/assistive-menu-tool-${{ steps.tag.outputs.name }}.apk
             app/build/outputs/bundle/release/assistive-menu-tool-${{ steps.tag.outputs.name }}.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 12. Hapus keystore dari runner ─────────────────────────────────────
       - name: Clean up keystore
         if: always()
-        run: rm -f $GITHUB_WORKSPACE/release.jks
+        run: rm -f "$GITHUB_WORKSPACE/release.jks"
