@@ -57,6 +57,16 @@ class SettingsRepository(context: Context) {
         get() = prefs.getInt(KEY_BORDER_WIDTH, DEFAULT_BORDER_WIDTH_DP)
         set(value) = prefs.edit().putInt(KEY_BORDER_WIDTH, value).apply()
 
+    // ── Gesture settings ─────────────────────────────────────────────────────
+
+    /** Action yang dijalankan saat long press pada floating button */
+    var longPressAction: MenuAction
+        get() {
+            val stored = prefs.getString(KEY_LONG_PRESS_ACTION, null)
+            return MenuAction.entries.find { it.name == stored } ?: DEFAULT_LONG_PRESS_ACTION
+        }
+        set(value) = prefs.edit().putString(KEY_LONG_PRESS_ACTION, value.name).apply()
+
     // ── Popup slots ──────────────────────────────────────────────────────────
 
     var popupSlots: List<PopupSlot>
@@ -108,8 +118,10 @@ class SettingsRepository(context: Context) {
         const val KEY_BORDER_ENABLED = "border_enabled"
         const val KEY_BORDER_COLOR   = "border_color"
         const val KEY_BORDER_WIDTH   = "border_width"
-        const val KEY_POPUP_SLOTS    = "popup_slots"
-        const val KEY_FAVORITE_SLOTS = "favorite_slots"
+        const val KEY_POPUP_SLOTS       = "popup_slots"
+        const val KEY_FAVORITE_SLOTS    = "favorite_slots"
+        const val KEY_LONG_PRESS_ACTION = "long_press_action"
+        val DEFAULT_LONG_PRESS_ACTION   = MenuAction.FAVORITES
 
         const val SHAPE_CIRCLE       = "circle"
         const val SHAPE_ROUNDED_RECT = "rounded_rect"
