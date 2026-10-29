@@ -181,6 +181,8 @@ This project uses the MIT License. The original copyright and license notices mu
 MIT License
 
 Copyright (c) 2026 João Couto
+Copyright (c) 2026 arfoxcode
+
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
