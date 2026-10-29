@@ -299,40 +299,35 @@ class FloatingButtonService : Service() {
      * Gap antar tile sebesar GAP_DP.
      */
     private fun buildMixedGrid(slots: List<PopupSlot>): View {
-        val cellPx   = dpToPx(MENU_ITEM_SIZE_DP)
-        val gapPx    = dpToPx(GAP_DP)
-        val cols     = 3
-        val rows     = 3
-        val totalPx  = cellPx * cols + gapPx * (cols - 1)
-        val occupied = Array(rows) { BooleanArray(cols) }
+        val cellPx  = dpToPx(MENU_ITEM_SIZE_DP)
+        val gapPx   = dpToPx(GAP_DP)
+        val cols    = 3
+        val rows    = 3
+        val totalPx = cellPx * cols + gapPx * (cols - 1)
 
         val grid = android.widget.RelativeLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(totalPx, totalPx)
         }
 
-        var slotIdx = 0
-        for (row in 0 until rows) {
-            for (col in 0 until cols) {
-                if (occupied[row][col]) continue
-                val slot = slots.getOrNull(slotIdx) ?: break
-                slotIdx++
+        // Posisi tile ditentukan oleh slotIndex — bukan sequential scan
+        // slotIndex 0..8 → row = idx/3, col = idx%3
+        for (slot in slots) {
+            val idx  = slot.slotIndex.coerceIn(0, 8)
+            val row  = idx / cols
+            val col  = idx % cols
 
-                val span = slot.tileSize.coerceIn(1, minOf(3, cols - col, rows - row))
+            // Span dibatasi supaya tidak keluar batas grid dari posisi ini
+            val span = slot.tileSize.coerceIn(1, minOf(3, cols - col, rows - row))
 
-                for (r in row until row + span)
-                    for (c in col until col + span)
-                        if (r < rows && c < cols) occupied[r][c] = true
+            val tilePx   = cellPx * span + gapPx * (span - 1)
+            val tileView = buildTileView(slot, tilePx)
 
-                val tilePx = cellPx * span + gapPx * (span - 1)
-                val tileView = buildTileView(slot, tilePx)
-
-                val lp = android.widget.RelativeLayout.LayoutParams(tilePx, tilePx).apply {
-                    leftMargin = col * (cellPx + gapPx)
-                    topMargin  = row * (cellPx + gapPx)
-                }
-                tileView.layoutParams = lp
-                grid.addView(tileView)
+            val lp = android.widget.RelativeLayout.LayoutParams(tilePx, tilePx).apply {
+                leftMargin = col * (cellPx + gapPx)
+                topMargin  = row * (cellPx + gapPx)
             }
+            tileView.layoutParams = lp
+            grid.addView(tileView)
         }
         return grid
     }
