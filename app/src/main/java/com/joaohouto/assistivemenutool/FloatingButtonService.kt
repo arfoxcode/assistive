@@ -415,10 +415,26 @@ class FloatingButtonService : Service() {
                     MenuAction.VOLUME_DOWN -> { hideMenu(); adjustVolume(AudioManager.ADJUST_LOWER) }
                     MenuAction.OPEN_APP   -> { hideMenu(); openApp() }
                     MenuAction.SCREENSHOT -> {
+                        // 1. Tutup menu
                         hideMenu()
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            AssistiveMenuAccessibilityService.instance?.execute(slot.action!!)
-                        }, SCREENSHOT_DELAY_MS)
+                        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                        handler.postDelayed({
+                            // 2. Sembunyikan floating button — tidak ikut ke screenshot
+                            floatingView.visibility = View.INVISIBLE
+                            handler.postDelayed({
+                                // 3. Ambil screenshot
+                                AssistiveMenuAccessibilityService.instance?.execute(slot.action!!)
+                                // 4. Tampilkan kembali dengan fade in
+                                handler.postDelayed({
+                                    floatingView.visibility = View.VISIBLE
+                                    floatingView.alpha = 0f
+                                    floatingView.animate()
+                                        .alpha(settings.opacity)
+                                        .setDuration(SCREENSHOT_RESTORE_MS)
+                                        .start()
+                                }, SCREENSHOT_RESTORE_MS)
+                            }, SCREENSHOT_CAPTURE_MS)
+                        }, SCREENSHOT_HIDE_MS)
                     }
                     else -> slot.action?.let {
                         hideMenu()
@@ -691,6 +707,8 @@ class FloatingButtonService : Service() {
         private const val SNAP_DURATION_MS    = 260L
         private const val MENU_SHOW_MS        = 200L
         private const val MENU_HIDE_MS        = 150L
-        private const val SCREENSHOT_DELAY_MS = 400L
+        private const val SCREENSHOT_HIDE_MS    = 150L  // tunggu animasi menu tutup
+        private const val SCREENSHOT_CAPTURE_MS  = 100L  // jeda setelah button hilang
+        private const val SCREENSHOT_RESTORE_MS  = 300L  // delay sebelum button muncul kembali
     }
 }
