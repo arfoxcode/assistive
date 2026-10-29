@@ -1,20 +1,22 @@
 package com.joaohouto.assistivemenutool
 
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +35,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -40,10 +44,12 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.joaohouto.assistivemenutool.ui.theme.AssistiveMenuToolTheme
 import kotlinx.coroutines.delay
@@ -60,23 +66,23 @@ class MainActivity : ComponentActivity() {
         setContent {
             AssistiveMenuToolTheme {
                 MainScreen(
-                    settings               = settings,
-                    hasOverlayPermission   = { Settings.canDrawOverlays(this) },
-                    hasAccessibilityService = { isAccessibilityServiceEnabled() },
-                    requestOverlayPermission = {
+                    settings                  = settings,
+                    hasOverlayPermission      = { Settings.canDrawOverlays(this) },
+                    hasAccessibilityService   = { isAccessibilityServiceEnabled() },
+                    requestOverlayPermission  = {
                         startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                             Uri.parse("package:$packageName")))
                     },
                     openAccessibilitySettings = {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     },
-                    isServiceRunning = { FloatingButtonService.isRunning },
-                    toggleService = {
+                    isServiceRunning          = { FloatingButtonService.isRunning },
+                    toggleService             = {
                         val svc = Intent(this, FloatingButtonService::class.java)
                         if (FloatingButtonService.isRunning) stopService(svc)
                         else startForegroundService(svc)
                     },
-                    getInstalledApps = { getInstalledApps() }
+                    getInstalledApps          = { getInstalledApps() }
                 )
             }
         }
@@ -88,23 +94,21 @@ class MainActivity : ComponentActivity() {
         return enabled.contains(packageName, ignoreCase = true)
     }
 
+    // FIX: cukup satu kondisi — semua app yang punya launcher intent
     private fun getInstalledApps(): List<AppInfo> {
         val pm = packageManager
-        return pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 ||
-                      pm.getLaunchIntentForPackage(it.packageName) != null }
-            .mapNotNull { info ->
-                val intent = pm.getLaunchIntentForPackage(info.packageName) ?: return@mapNotNull null
+        return pm.getInstalledPackages(PackageManager.GET_META_DATA)
+            .mapNotNull { pkg ->
+                val intent = pm.getLaunchIntentForPackage(pkg.packageName) ?: return@mapNotNull null
                 AppInfo(
-                    packageName = info.packageName,
-                    label       = pm.getApplicationLabel(info).toString(),
+                    packageName = pkg.packageName,
+                    label       = pm.getApplicationLabel(pkg.applicationInfo).toString(),
                     icon        = try {
-                        val d = pm.getApplicationIcon(info.packageName)
-                        val bmp = Bitmap.createBitmap(d.intrinsicWidth.coerceAtLeast(1),
-                            d.intrinsicHeight.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-                        d.setBounds(0, 0, bmp.width, bmp.height)
-                        d.draw(Canvas(bmp))
-                        bmp
+                        val d   = pm.getApplicationIcon(pkg.packageName)
+                        val w   = d.intrinsicWidth.coerceAtLeast(1)
+                        val h   = d.intrinsicHeight.coerceAtLeast(1)
+                        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                        d.setBounds(0, 0, w, h); d.draw(Canvas(bmp)); bmp
                     } catch (_: Exception) { null }
                 )
             }
@@ -114,7 +118,9 @@ class MainActivity : ComponentActivity() {
 
 data class AppInfo(val packageName: String, val label: String, val icon: Bitmap?)
 
-// ── Main screen ───────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Screen
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun MainScreen(
@@ -162,84 +168,421 @@ private fun MainScreen(
         )
     }
 
-    Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background
+    ) { padding ->
+        LazyColumn(
+            modifier            = Modifier.fillMaxSize().padding(padding),
+            contentPadding      = PaddingValues(bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            Spacer(Modifier.height(32.dp))
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(stringResource(R.string.app_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(32.dp))
-
-            PermissionRow(stringResource(R.string.permission_overlay), overlayGranted, requestOverlayPermission)
-            Spacer(Modifier.height(8.dp))
-            PermissionRow(stringResource(R.string.permission_accessibility), accessibilityEnabled) {
-                showAccessibilityDisclosure = true
+            // ── Hero header ────────────────────────────────────────────────
+            item {
+                HeroHeader(
+                    serviceRunning = serviceRunning,
+                    allGranted     = allGranted,
+                    onToggle       = { if (allGranted) toggleService() }
+                )
             }
-            Spacer(Modifier.height(16.dp))
 
-            // Toggle service
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.size(2.dp))
-                        Text(
-                            text = when {
-                                !allGranted    -> stringResource(R.string.status_permissions_required)
-                                serviceRunning -> stringResource(R.string.status_active)
-                                else           -> stringResource(R.string.status_inactive)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = when {
-                                !allGranted    -> MaterialTheme.colorScheme.error
-                                serviceRunning -> MaterialTheme.colorScheme.primary
-                                else           -> MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    }
-                    Switch(
-                        checked = serviceRunning && allGranted,
-                        onCheckedChange = { if (allGranted) toggleService() },
-                        enabled = allGranted
+            // ── Permissions ────────────────────────────────────────────────
+            item {
+                SectionLabel("Permissions")
+                Column(
+                    modifier            = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ModernPermissionRow(
+                        label   = stringResource(R.string.permission_overlay),
+                        granted = overlayGranted,
+                        onRequest = requestOverlayPermission
+                    )
+                    ModernPermissionRow(
+                        label   = stringResource(R.string.permission_accessibility),
+                        granted = accessibilityEnabled,
+                        onRequest = { showAccessibilityDisclosure = true }
                     )
                 }
+                Spacer(Modifier.height(24.dp))
             }
 
-            Spacer(Modifier.height(24.dp))
-            AppearanceSection(settings)
-            Spacer(Modifier.height(16.dp))
-            PopupSlotsSection(settings, getInstalledApps)
-            Spacer(Modifier.height(16.dp))
-            FavoritesSection(settings, getInstalledApps)
-            Spacer(Modifier.height(16.dp))
-            OpacitySizeSection(settings)
-            Spacer(Modifier.height(32.dp))
+            // ── Button appearance ──────────────────────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_appearance))
+                AppearanceSection(settings)
+                Spacer(Modifier.height(24.dp))
+            }
+
+            // ── Button size & opacity ──────────────────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_settings))
+                SizeOpacitySection(settings)
+                Spacer(Modifier.height(24.dp))
+            }
+
+            // ── Popup slots ────────────────────────────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_popup_slots))
+                PopupSlotsSection(settings, getInstalledApps)
+                Spacer(Modifier.height(24.dp))
+            }
+
+            // ── Favorites ──────────────────────────────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_favorites))
+                FavoritesSection(settings, getInstalledApps)
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }
 
-// ── Popup Slots Section ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Hero Header
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun PopupSlotsSection(
-    settings: SettingsRepository,
-    getInstalledApps: () -> List<AppInfo>
-) {
-    var slots by remember { mutableStateOf(settings.popupSlots) }
-    var editingSlot by remember { mutableStateOf<Int?>(null) }
-    var showAppPicker by remember { mutableStateOf(false) }
-    var apps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+private fun HeroHeader(serviceRunning: Boolean, allGranted: Boolean, onToggle: () -> Unit) {
+    val activeColor = MaterialTheme.colorScheme.primary
+    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
+            .padding(horizontal = 24.dp)
+            .padding(top = 56.dp, bottom = 32.dp)
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter           = painterResource(R.drawable.ic_floating_button),
+                        contentDescription = null,
+                        tint              = MaterialTheme.colorScheme.onPrimary,
+                        modifier          = Modifier.size(26.dp)
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    Text(
+                        text       = stringResource(R.string.app_name),
+                        style      = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text  = stringResource(R.string.app_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(28.dp))
+
+            // Status + toggle card
+            Surface(
+                shape  = RoundedCornerShape(20.dp),
+                color  = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier            = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    verticalAlignment   = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    when {
+                                        !allGranted    -> MaterialTheme.colorScheme.error
+                                        serviceRunning -> Color(0xFF34C759) // green
+                                        else           -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    }
+                                )
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = when {
+                                    !allGranted    -> stringResource(R.string.status_permissions_required)
+                                    serviceRunning -> stringResource(R.string.status_active)
+                                    else           -> stringResource(R.string.status_inactive)
+                                },
+                                style      = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (allGranted) {
+                                Text(
+                                    text  = if (serviceRunning) "Tap to stop" else "Tap to start",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    Switch(
+                        checked         = serviceRunning && allGranted,
+                        onCheckedChange = { onToggle() },
+                        enabled         = allGranted
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section Label
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SectionLabel(title: String) {
+    Text(
+        text     = title.uppercase(),
+        style    = MaterialTheme.typography.labelSmall,
+        color    = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.2.sp,
+        modifier = Modifier
+            .padding(horizontal = 28.dp)
+            .padding(bottom = 10.dp)
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Modern Permission Row
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun ModernPermissionRow(label: String, granted: Boolean, onRequest: () -> Unit) {
+    Surface(
+        shape           = RoundedCornerShape(16.dp),
+        color           = if (granted)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        else
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+        modifier        = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier              = Modifier.padding(16.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter           = painterResource(
+                        if (granted) R.drawable.ic_check_circle else R.drawable.ic_circle_outline
+                    ),
+                    contentDescription = null,
+                    modifier          = Modifier.size(22.dp),
+                    tint              = if (granted) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            }
+            if (!granted) {
+                FilledTonalButton(
+                    onClick          = onRequest,
+                    contentPadding   = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    modifier         = Modifier.height(34.dp)
+                ) {
+                    Text(stringResource(R.string.action_activate), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Appearance Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AppearanceSection(settings: SettingsRepository) {
+    var shape         by remember { mutableStateOf(settings.buttonShape) }
+    var outerColor    by remember { mutableStateOf(Color(settings.outerColor)) }
+    var innerColor    by remember { mutableStateOf(Color(settings.innerColor)) }
+    var borderEnabled by remember { mutableStateOf(settings.borderEnabled) }
+    var borderColor   by remember { mutableStateOf(Color(settings.borderColor)) }
+    var borderWidth   by remember { mutableIntStateOf(settings.borderWidthDp) }
+    var colorTarget   by remember { mutableStateOf<String?>(null) }
+
+    colorTarget?.let { target ->
+        val cur = when (target) { "outer" -> outerColor; "inner" -> innerColor; else -> borderColor }
+        ColorPickerDialog(initial = cur, onDismiss = { colorTarget = null }, onConfirm = { picked ->
+            when (target) {
+                "outer"  -> { outerColor = picked; settings.outerColor = picked.toArgb() }
+                "inner"  -> { innerColor = picked; settings.innerColor = picked.toArgb() }
+                "border" -> { borderColor = picked; settings.borderColor = picked.toArgb() }
+            }
+            colorTarget = null
+        })
+    }
+
+    ModernCard {
+        // Live preview
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            ButtonPreview(shape, outerColor, innerColor, borderEnabled, borderColor, borderWidth)
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // Shape
+        SettingRow(label = stringResource(R.string.label_shape)) {
+            SingleChoiceSegmentedButtonRow {
+                listOf(SettingsRepository.SHAPE_CIRCLE to stringResource(R.string.shape_circle),
+                    SettingsRepository.SHAPE_ROUNDED_RECT to stringResource(R.string.shape_rounded))
+                    .forEachIndexed { i, (v, l) ->
+                        SegmentedButton(
+                            shape    = SegmentedButtonDefaults.itemShape(i, 2),
+                            onClick  = { shape = v; settings.buttonShape = v },
+                            selected = shape == v
+                        ) { Text(l, style = MaterialTheme.typography.labelMedium) }
+                    }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        ModernDivider()
+        Spacer(Modifier.height(16.dp))
+
+        // Colors
+        Text(stringResource(R.string.label_colors),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(10.dp))
+
+        ColorChip(label = stringResource(R.string.label_outer_color), color = outerColor) { colorTarget = "outer" }
+        Spacer(Modifier.height(8.dp))
+        ColorChip(label = stringResource(R.string.label_inner_color), color = innerColor) { colorTarget = "inner" }
+
+        Spacer(Modifier.height(16.dp))
+        ModernDivider()
+        Spacer(Modifier.height(16.dp))
+
+        // Border
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text(stringResource(R.string.label_border), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Switch(checked = borderEnabled, onCheckedChange = { borderEnabled = it; settings.borderEnabled = it })
+        }
+
+        AnimatedVisibility(
+            visible = borderEnabled,
+            enter   = fadeIn() + expandVertically(),
+            exit    = fadeOut() + shrinkVertically()
+        ) {
+            Column {
+                Spacer(Modifier.height(12.dp))
+                ColorChip(label = stringResource(R.string.label_border_color), color = borderColor) { colorTarget = "border" }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text(stringResource(R.string.label_border_width), style = MaterialTheme.typography.bodyMedium)
+                    Text("${borderWidth}dp", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                }
+                Slider(value = borderWidth.toFloat(), onValueChange = { borderWidth = it.roundToInt() },
+                    onValueChangeFinished = { settings.borderWidthDp = borderWidth },
+                    valueRange = 1f..8f, steps = 6, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Size & Opacity Section  (slider bebas untuk size)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SizeOpacitySection(settings: SettingsRepository) {
+    var opacity by remember { mutableFloatStateOf(settings.opacity) }
+    var sizeDp  by remember { mutableIntStateOf(settings.buttonSizeDp) }
+
+    ModernCard {
+        // Opacity
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text(stringResource(R.string.label_opacity), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text("${(opacity * 100).toInt()}%", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+        }
+        Slider(value = opacity, onValueChange = { opacity = it },
+            onValueChangeFinished = { settings.opacity = opacity },
+            valueRange = 0.3f..1.0f, modifier = Modifier.fillMaxWidth())
+
+        Spacer(Modifier.height(8.dp))
+        ModernDivider()
+        Spacer(Modifier.height(16.dp))
+
+        // Size — slider bebas
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column {
+                Text(stringResource(R.string.label_size), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text("${SettingsRepository.MIN_SIZE_DP}dp – ${SettingsRepository.MAX_SIZE_DP}dp",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Text("${sizeDp}dp",
+                    modifier   = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style      = MaterialTheme.typography.labelLarge,
+                    color      = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Slider(
+            value                = sizeDp.toFloat(),
+            onValueChange        = { sizeDp = it.roundToInt() },
+            onValueChangeFinished = { settings.buttonSizeDp = sizeDp },
+            valueRange           = SettingsRepository.MIN_SIZE_DP.toFloat()..SettingsRepository.MAX_SIZE_DP.toFloat(),
+            modifier             = Modifier.fillMaxWidth()
+        )
+
+        // Quick presets
+        Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+            listOf(40 to "S", 56 to "M", 72 to "L", 88 to "XL").forEach { (dp, label) ->
+                FilterChip(
+                    selected = sizeDp == dp,
+                    onClick  = { sizeDp = dp; settings.buttonSizeDp = dp },
+                    label    = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Popup Slots Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun PopupSlotsSection(settings: SettingsRepository, getInstalledApps: () -> List<AppInfo>) {
+    var slots        by remember { mutableStateOf(settings.popupSlots) }
+    var editingSlot  by remember { mutableStateOf<Int?>(null) }
+    var showAppPicker  by remember { mutableStateOf(false) }
+    var apps         by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
 
     LaunchedEffect(showAppPicker) {
         if (showAppPicker && apps.isEmpty()) apps = getInstalledApps()
@@ -247,170 +590,133 @@ private fun PopupSlotsSection(
 
     if (showAppPicker) {
         val idx = editingSlot ?: return@PopupSlotsSection
-        AppPickerDialog(
-            apps = apps,
-            onDismiss = { showAppPicker = false; editingSlot = null },
+        AppPickerDialog(apps = apps, onDismiss = { showAppPicker = false; editingSlot = null },
             onPick = { app ->
                 val updated = slots.toMutableList()
                 updated[idx] = PopupSlot.fromShortcut(
                     AppShortcut(packageName = app.packageName, label = app.label),
-                    slotIndex = idx,
-                    tileSize  = slots[idx].tileSize
-                )
-                slots = updated
-                settings.popupSlots = updated
+                    slotIndex = idx, tileSize = slots[idx].tileSize)
+                slots = updated; settings.popupSlots = updated
                 showAppPicker = false; editingSlot = null
-            }
-        )
+            })
     }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.title_popup_slots), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text("${slots.filter { !it.isEmpty }.size}/9 slots used",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(12.dp))
+    ModernCard {
+        Text("${slots.filter { !it.isEmpty }.size} / 9 ${stringResource(R.string.title_popup_slots)}",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(12.dp))
 
-            slots.forEachIndexed { idx, slot ->
-                SlotRow(
-                    index = idx,
-                    slot  = slot,
-                    onSetAction = { action ->
-                        val updated = slots.toMutableList()
-                        updated[idx] = PopupSlot.fromAction(action, idx, slot.tileSize)
-                        slots = updated; settings.popupSlots = updated
-                    },
-                    onSetShortcut = { editingSlot = idx; showAppPicker = true },
-                    onClear = {
-                        val updated = slots.toMutableList()
-                        updated[idx] = PopupSlot.empty(idx)
-                        slots = updated; settings.popupSlots = updated
-                    },
-                    onSizeChange = { size ->
-                        val updated = slots.toMutableList()
-                        updated[idx] = slot.copy(tileSize = size)
-                        slots = updated; settings.popupSlots = updated
-                    }
-                )
-                if (idx < 8) HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            }
+        slots.forEachIndexed { idx, slot ->
+            SlotRow(
+                index       = idx, slot = slot,
+                onSetAction = { action ->
+                    val u = slots.toMutableList()
+                    u[idx] = PopupSlot.fromAction(action, idx, slot.tileSize)
+                    slots = u; settings.popupSlots = u
+                },
+                onSetShortcut = { editingSlot = idx; showAppPicker = true },
+                onClear       = {
+                    val u = slots.toMutableList()
+                    u[idx] = PopupSlot.empty(idx)
+                    slots = u; settings.popupSlots = u
+                },
+                onSizeChange  = { size ->
+                    val u = slots.toMutableList()
+                    u[idx] = slot.copy(tileSize = size)
+                    slots = u; settings.popupSlots = u
+                }
+            )
+            if (idx < 8) ModernDivider(Modifier.padding(vertical = 2.dp))
         }
     }
 }
 
 @Composable
-private fun SlotRow(
-    index: Int,
-    slot: PopupSlot,
-    onSetAction: (MenuAction) -> Unit,
-    onSetShortcut: () -> Unit,
-    onClear: () -> Unit,
-    onSizeChange: (Int) -> Unit
-) {
+private fun SlotRow(index: Int, slot: PopupSlot,
+    onSetAction: (MenuAction) -> Unit, onSetShortcut: () -> Unit,
+    onClear: () -> Unit, onSizeChange: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     var showActionPicker by remember { mutableStateOf(false) }
+    val chevronAngle by animateFloatAsState(if (expanded) 180f else 0f, tween(200), label = "chevron")
 
     if (showActionPicker) {
-        ActionPickerDialog(
-            onDismiss = { showActionPicker = false },
-            onPick    = { action -> onSetAction(action); showActionPicker = false }
-        )
+        ActionPickerDialog(onDismiss = { showActionPicker = false },
+            onPick = { action -> onSetAction(action); showActionPicker = false })
     }
 
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Slot number badge
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("${index + 1}", style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .clickable { expanded = !expanded }.padding(vertical = 10.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically) {
 
+            // Index badge
+            Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center) {
+                Text("${index + 1}", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+            }
             Spacer(Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(Modifier.weight(1f)) {
                 Text(
                     text = when (slot.type) {
-                        PopupSlot.SlotType.ACTION   -> slot.action?.let {
-                            // Ambil nama action dari resource string tidak bisa di sini,
-                            // pakai nama enum saja
-                            it.name.replace('_', ' ').lowercase()
-                                .replaceFirstChar { c -> c.uppercase() }
-                        } ?: stringResource(R.string.slot_empty)
+                        PopupSlot.SlotType.ACTION -> slot.action?.name
+                            ?.replace('_', ' ')?.lowercase()?.replaceFirstChar { it.uppercase() }
+                            ?: stringResource(R.string.slot_empty)
                         PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label
                             ?: slot.shortcut?.packageName ?: stringResource(R.string.slot_empty)
                         else -> stringResource(R.string.slot_empty)
                     },
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium
                 )
-                if (!slot.isEmpty) {
-                    Text(
-                        text = when (slot.type) {
-                            PopupSlot.SlotType.ACTION   -> stringResource(R.string.slot_type_action)
-                            PopupSlot.SlotType.SHORTCUT -> stringResource(R.string.slot_type_shortcut)
-                            else -> ""
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = when (slot.type) {
+                        PopupSlot.SlotType.ACTION   -> "${stringResource(R.string.slot_type_action)} · ${slot.tileSize}×${slot.tileSize}"
+                        PopupSlot.SlotType.SHORTCUT -> "${stringResource(R.string.slot_type_shortcut)} · ${slot.tileSize}×${slot.tileSize}"
+                        else -> stringResource(R.string.slot_empty)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            IconButton(onClick = { expanded = !expanded }) {
-                Icon(
-                    painter = painterResource(
-                        if (expanded) R.drawable.ic_volume_up else R.drawable.ic_quick_settings
-                    ),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+            Icon(painter = painterResource(R.drawable.ic_volume_down),
+                contentDescription = null, modifier = Modifier.size(16.dp).rotate(chevronAngle),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        AnimatedVisibility(visible = expanded) {
-            Column(modifier = Modifier.padding(start = 40.dp, bottom = 8.dp)) {
-                // Tile size
+        AnimatedVisibility(visible = expanded,
+            enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+            Column(Modifier.padding(start = 44.dp, bottom = 8.dp, end = 4.dp)) {
                 Text(stringResource(R.string.label_tile_size),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(4.dp))
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.height(6.dp))
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3)
                         .forEachIndexed { i, (size, res) ->
-                            SegmentedButton(
-                                shape    = SegmentedButtonDefaults.itemShape(i, 3),
-                                onClick  = { onSizeChange(size) },
-                                selected = slot.tileSize == size
-                            ) { Text(stringResource(res)) }
+                            SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 3),
+                                onClick = { onSizeChange(size) }, selected = slot.tileSize == size) {
+                                Text(stringResource(res), style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                 }
                 Spacer(Modifier.height(8.dp))
-                // Actions
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { showActionPicker = true },
-                        modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.slot_type_action),
-                            style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = { showActionPicker = true }, modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
+                        Text(stringResource(R.string.slot_type_action), style = MaterialTheme.typography.labelSmall)
                     }
-                    OutlinedButton(onClick = onSetShortcut,
-                        modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.action_choose_app),
-                            style = MaterialTheme.typography.labelSmall)
+                    OutlinedButton(onClick = onSetShortcut, modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
+                        Text(stringResource(R.string.action_choose_app), style = MaterialTheme.typography.labelSmall)
                     }
                     if (!slot.isEmpty) {
-                        OutlinedButton(onClick = { onClear(); expanded = false }) {
-                            Text(stringResource(R.string.action_clear_slot),
-                                style = MaterialTheme.typography.labelSmall)
+                        OutlinedButton(onClick = { onClear(); expanded = false },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                            Text(stringResource(R.string.action_clear_slot), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -419,18 +725,17 @@ private fun SlotRow(
     }
 }
 
-// ── Favorites Section ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Favorites Section
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun FavoritesSection(
-    settings: SettingsRepository,
-    getInstalledApps: () -> List<AppInfo>
-) {
-    var slots by remember { mutableStateOf(settings.favoriteSlots) }
-    var editingSlot by remember { mutableStateOf<Int?>(null) }
-    var showAppPicker by remember { mutableStateOf(false) }
+private fun FavoritesSection(settings: SettingsRepository, getInstalledApps: () -> List<AppInfo>) {
+    var slots        by remember { mutableStateOf(settings.favoriteSlots) }
+    var editingSlot  by remember { mutableStateOf<Int?>(null) }
+    var showAppPicker  by remember { mutableStateOf(false) }
     var showLabelEditor by remember { mutableStateOf(false) }
-    var apps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+    var apps         by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
 
     LaunchedEffect(showAppPicker) {
         if (showAppPicker && apps.isEmpty()) apps = getInstalledApps()
@@ -438,95 +743,56 @@ private fun FavoritesSection(
 
     if (showAppPicker) {
         val idx = editingSlot ?: return@FavoritesSection
-        AppPickerDialog(
-            apps = apps,
-            onDismiss = { showAppPicker = false; editingSlot = null },
+        AppPickerDialog(apps = apps, onDismiss = { showAppPicker = false; editingSlot = null },
             onPick = { app ->
-                val updated = slots.toMutableList()
-                updated[idx] = AppShortcut(
-                    packageName = app.packageName,
-                    label       = app.label,
-                    tileSize    = slots[idx].tileSize,
-                    slotIndex   = idx
-                )
-                slots = updated; settings.favoriteSlots = updated
+                val u = slots.toMutableList()
+                u[idx] = AppShortcut(packageName = app.packageName, label = app.label,
+                    tileSize = slots[idx].tileSize, slotIndex = idx)
+                slots = u; settings.favoriteSlots = u
                 showAppPicker = false; editingSlot = null
-            }
-        )
+            })
     }
 
     if (showLabelEditor) {
         val idx = editingSlot ?: return@FavoritesSection
-        val current = slots[idx]
-        LabelEditorDialog(
-            initial   = current.label ?: "",
+        LabelEditorDialog(initial = slots[idx].label ?: "",
             onDismiss = { showLabelEditor = false; editingSlot = null },
             onConfirm = { label ->
-                val updated = slots.toMutableList()
-                updated[idx] = current.copy(label = label.ifEmpty { null })
-                slots = updated; settings.favoriteSlots = updated
+                val u = slots.toMutableList()
+                u[idx] = slots[idx].copy(label = label.ifEmpty { null })
+                slots = u; settings.favoriteSlots = u
                 showLabelEditor = false; editingSlot = null
-            }
-        )
+            })
     }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.title_favorites), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text("${slots.filter { !it.isEmpty }.size}/9 apps",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(12.dp))
+    ModernCard {
+        Text("${slots.filter { !it.isEmpty }.size} / 9 apps",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(12.dp))
 
-            // Grid preview 3×3
-            FavoritesGrid(
-                slots = slots,
-                onSlotClick = { idx ->
-                    editingSlot = idx
-                    showAppPicker = true
-                },
-                onSlotLongClick = { idx ->
-                    editingSlot = idx
-                    showLabelEditor = true
-                },
-                onClear = { idx ->
-                    val updated = slots.toMutableList()
-                    updated[idx] = AppShortcut.empty(idx)
-                    slots = updated; settings.favoriteSlots = updated
-                },
-                onSizeChange = { idx, size ->
-                    val updated = slots.toMutableList()
-                    updated[idx] = slots[idx].copy(tileSize = size)
-                    slots = updated; settings.favoriteSlots = updated
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun FavoritesGrid(
-    slots: List<AppShortcut>,
-    onSlotClick: (Int) -> Unit,
-    onSlotLongClick: (Int) -> Unit,
-    onClear: (Int) -> Unit,
-    onSizeChange: (Int, Int) -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        slots.chunked(3).forEachIndexed { rowIdx, row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                row.forEachIndexed { colIdx, slot ->
-                    val idx = rowIdx * 3 + colIdx
-                    FavoriteSlotCard(
-                        slot         = slot,
-                        index        = idx,
-                        modifier     = Modifier.weight(1f),
-                        onClick      = { onSlotClick(idx) },
-                        onLongClick  = { if (!slot.isEmpty) onSlotLongClick(idx) },
-                        onClear      = { onClear(idx) },
-                        onSizeChange = { size -> onSizeChange(idx, size) }
-                    )
+        // Grid 3×3
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            slots.chunked(3).forEachIndexed { rowIdx, row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEachIndexed { colIdx, slot ->
+                        val idx = rowIdx * 3 + colIdx
+                        FavoriteSlotCard(
+                            slot         = slot,
+                            modifier     = Modifier.weight(1f),
+                            onClick      = { editingSlot = idx; showAppPicker = true },
+                            onEditLabel  = { editingSlot = idx; showLabelEditor = true },
+                            onClear      = {
+                                val u = slots.toMutableList()
+                                u[idx] = AppShortcut.empty(idx)
+                                slots = u; settings.favoriteSlots = u
+                            },
+                            onSizeChange = { size ->
+                                val u = slots.toMutableList()
+                                u[idx] = slots[idx].copy(tileSize = size)
+                                slots = u; settings.favoriteSlots = u
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -535,51 +801,72 @@ private fun FavoritesGrid(
 
 @Composable
 private fun FavoriteSlotCard(
-    slot: AppShortcut,
-    index: Int,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onClear: () -> Unit,
-    onSizeChange: (Int) -> Unit
+    slot: AppShortcut, modifier: Modifier = Modifier,
+    onClick: () -> Unit, onEditLabel: () -> Unit,
+    onClear: () -> Unit, onSizeChange: (Int) -> Unit
 ) {
     var showOptions by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = modifier
-            .aspectRatio(1f)
-            .clickable { if (slot.isEmpty) onClick() else showOptions = !showOptions },
-        colors = CardDefaults.cardColors(
-            containerColor = if (slot.isEmpty)
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            else
-                MaterialTheme.colorScheme.secondaryContainer
+    if (showOptions && !slot.isEmpty) {
+        AlertDialog(onDismissRequest = { showOptions = false },
+            title = { Text(slot.label ?: slot.packageName?.substringAfterLast('.') ?: "") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(stringResource(R.string.label_tile_size),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3)
+                            .forEachIndexed { i, (size, res) ->
+                                SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 3),
+                                    onClick = { onSizeChange(size) }, selected = slot.tileSize == size) {
+                                    Text(stringResource(res), style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onEditLabel(); showOptions = false }) {
+                    Text(stringResource(R.string.action_edit_label))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onClear(); showOptions = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                    Text(stringResource(R.string.action_clear_slot))
+                }
+            }
         )
+    }
+
+    Surface(
+        shape    = RoundedCornerShape(16.dp),
+        color    = if (slot.isEmpty) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                   else MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp))
+            .clickable { if (slot.isEmpty) onClick() else showOptions = true }
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (slot.isEmpty) {
-                Text("+", style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                Icon(painter = painterResource(R.drawable.ic_home),
+                    contentDescription = null, modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(4.dp)) {
-                    // Icon placeholder — bitmap dari packageManager tidak bisa langsung
-                    // di Compose tanpa Coil, jadi tampilkan initial letter
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    modifier = Modifier.padding(6.dp)) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primary),
+                        contentAlignment = Alignment.Center) {
                         Text(
                             text  = (slot.label ?: slot.packageName ?: "?")
                                 .firstOrNull()?.uppercase() ?: "?",
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(5.dp))
                     Text(
                         text     = slot.label ?: slot.packageName?.substringAfterLast('.') ?: "",
                         style    = MaterialTheme.typography.labelSmall,
@@ -590,98 +877,62 @@ private fun FavoriteSlotCard(
             }
         }
     }
-
-    if (showOptions && !slot.isEmpty) {
-        AlertDialog(
-            onDismissRequest = { showOptions = false },
-            title = { Text(slot.label ?: slot.packageName ?: "") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.label_tile_size),
-                        style = MaterialTheme.typography.labelMedium)
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3)
-                            .forEachIndexed { i, (size, res) ->
-                                SegmentedButton(
-                                    shape    = SegmentedButtonDefaults.itemShape(i, 3),
-                                    onClick  = { onSizeChange(size) },
-                                    selected = slot.tileSize == size
-                                ) { Text(stringResource(res)) }
-                            }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { onLongClick(); showOptions = false }) {
-                    Text(stringResource(R.string.action_edit_label))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { onClear(); showOptions = false },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error)) {
-                    Text(stringResource(R.string.action_clear_slot))
-                }
-            }
-        )
-    }
 }
 
-// ── App Picker Dialog ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Dialogs
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun AppPickerDialog(
-    apps: List<AppInfo>,
-    onDismiss: () -> Unit,
-    onPick: (AppInfo) -> Unit
-) {
+private fun AppPickerDialog(apps: List<AppInfo>, onDismiss: () -> Unit, onPick: (AppInfo) -> Unit) {
     var query by remember { mutableStateOf("") }
     val filtered = remember(query, apps) {
-        if (query.isEmpty()) apps
-        else apps.filter { it.label.contains(query, ignoreCase = true) }
+        if (query.isEmpty()) apps else apps.filter { it.label.contains(query, ignoreCase = true) }
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Card(shape = RoundedCornerShape(16.dp)) {
-            Column(modifier = Modifier.padding(16.dp).heightIn(max = 480.dp)) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.padding(20.dp).heightIn(max = 520.dp)) {
                 Text(stringResource(R.string.action_choose_app),
-                    style = MaterialTheme.typography.titleMedium)
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(value = query, onValueChange = { query = it },
+                    placeholder = { Text("Search…") }, singleLine = true,
+                    shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value         = query,
-                    onValueChange = { query = it },
-                    placeholder   = { Text("Search…") },
-                    singleLine    = true,
-                    modifier      = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    items(filtered, key = { it.packageName }) { app ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
+
+                if (apps.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                    }
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        items(filtered, key = { it.packageName }) { app ->
+                            Row(modifier = Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
                                 .clickable { onPick(app) }
                                 .padding(horizontal = 8.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            app.icon?.let { bmp ->
-                                Image(bitmap = bmp.asImageBitmap(),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)))
-                            } ?: Box(modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                                contentAlignment = Alignment.Center) {
-                                Text(app.label.firstOrNull()?.uppercase() ?: "?",
-                                    style = MaterialTheme.typography.titleSmall)
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(app.label, style = MaterialTheme.typography.bodyMedium)
-                                Text(app.packageName, style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                verticalAlignment = Alignment.CenterVertically) {
+                                if (app.icon != null) {
+                                    Image(bitmap = app.icon.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
+                                } else {
+                                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
+                                        contentAlignment = Alignment.Center) {
+                                        Text(app.label.firstOrNull()?.uppercase() ?: "?",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    }
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(app.label, style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium)
+                                    Text(app.packageName, style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
@@ -691,227 +942,53 @@ private fun AppPickerDialog(
     }
 }
 
-// ── Action Picker Dialog ──────────────────────────────────────────────────────
-
 @Composable
 private fun ActionPickerDialog(onDismiss: () -> Unit, onPick: (MenuAction) -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
-        Card(shape = RoundedCornerShape(16.dp)) {
-            Column(modifier = Modifier.padding(16.dp)) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Text(stringResource(R.string.slot_type_action),
-                    style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(12.dp))
                 MenuAction.entries.forEach { action ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onPick(action) }
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(painter = painterResource(action.iconRes()),
-                            contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Text(action.name.replace('_', ' ').lowercase()
-                            .replaceFirstChar { it.uppercase() },
-                            style = MaterialTheme.typography.bodyMedium)
+                    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .clickable { onPick(action) }.padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center) {
+                            Icon(painter = painterResource(action.iconRes()), contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Text(action.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
                 }
             }
         }
     }
 }
-
-// ── Label Editor Dialog ───────────────────────────────────────────────────────
 
 @Composable
 private fun LabelEditorDialog(initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var text by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
+    AlertDialog(onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.action_edit_label)) },
         text = {
-            OutlinedTextField(
-                value         = text,
-                onValueChange = { text = it },
-                placeholder   = { Text(stringResource(R.string.hint_custom_label)) },
-                singleLine    = true,
-                modifier      = Modifier.fillMaxWidth()
-            )
+            OutlinedTextField(value = text, onValueChange = { text = it },
+                placeholder = { Text(stringResource(R.string.hint_custom_label)) },
+                singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
         },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(text) }) {
-                Text(stringResource(R.string.action_apply))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        }
+        confirmButton = { TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.action_apply)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
-// ── Appearance Section (sama seperti sebelumnya) ──────────────────────────────
-
-@Composable
-private fun AppearanceSection(settings: SettingsRepository) {
-    var shape         by remember { mutableStateOf(settings.buttonShape) }
-    var outerColor    by remember { mutableStateOf(Color(settings.outerColor)) }
-    var innerColor    by remember { mutableStateOf(Color(settings.innerColor)) }
-    var borderEnabled by remember { mutableStateOf(settings.borderEnabled) }
-    var borderColor   by remember { mutableStateOf(Color(settings.borderColor)) }
-    var borderWidth   by remember { mutableIntStateOf(settings.borderWidthDp) }
-    var colorPickerTarget by remember { mutableStateOf<String?>(null) }
-
-    colorPickerTarget?.let { target ->
-        val currentColor = when (target) {
-            "outer" -> outerColor; "inner" -> innerColor; else -> borderColor
-        }
-        ColorPickerDialog(initial = currentColor, onDismiss = { colorPickerTarget = null },
-            onConfirm = { picked ->
-                when (target) {
-                    "outer"  -> { outerColor = picked; settings.outerColor = picked.toArgb() }
-                    "inner"  -> { innerColor = picked; settings.innerColor = picked.toArgb() }
-                    "border" -> { borderColor = picked; settings.borderColor = picked.toArgb() }
-                }
-                colorPickerTarget = null
-            })
-    }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.title_appearance), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(16.dp))
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                ButtonPreview(shape, outerColor, innerColor, borderEnabled, borderColor, borderWidth)
-            }
-            Spacer(Modifier.height(20.dp)); HorizontalDivider(); Spacer(Modifier.height(16.dp))
-
-            Text(stringResource(R.string.label_shape), style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(8.dp))
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                listOf(SettingsRepository.SHAPE_CIRCLE to stringResource(R.string.shape_circle),
-                    SettingsRepository.SHAPE_ROUNDED_RECT to stringResource(R.string.shape_rounded))
-                    .forEachIndexed { i, (value, label) ->
-                        SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 2),
-                            onClick = { shape = value; settings.buttonShape = value },
-                            selected = shape == value) { Text(label) }
-                    }
-            }
-            Spacer(Modifier.height(20.dp)); HorizontalDivider(); Spacer(Modifier.height(16.dp))
-
-            Text(stringResource(R.string.label_colors), style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(12.dp))
-            ColorPickerRow(stringResource(R.string.label_outer_color), outerColor) { colorPickerTarget = "outer" }
-            Spacer(Modifier.height(8.dp))
-            ColorPickerRow(stringResource(R.string.label_inner_color), innerColor) { colorPickerTarget = "inner" }
-            Spacer(Modifier.height(20.dp)); HorizontalDivider(); Spacer(Modifier.height(16.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.label_border), style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = borderEnabled,
-                    onCheckedChange = { borderEnabled = it; settings.borderEnabled = it })
-            }
-            AnimatedVisibility(visible = borderEnabled) {
-                Column {
-                    Spacer(Modifier.height(12.dp))
-                    ColorPickerRow(stringResource(R.string.label_border_color), borderColor) { colorPickerTarget = "border" }
-                    Spacer(Modifier.height(12.dp))
-                    Row(modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.label_border_width), style = MaterialTheme.typography.bodyMedium)
-                        Text("$borderWidth dp", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Slider(value = borderWidth.toFloat(), onValueChange = { borderWidth = it.roundToInt() },
-                        onValueChangeFinished = { settings.borderWidthDp = borderWidth },
-                        valueRange = 1f..8f, steps = 6, modifier = Modifier.fillMaxWidth())
-                }
-            }
-        }
-    }
-}
-
-// ── Opacity & Size Section ────────────────────────────────────────────────────
-
-@Composable
-private fun OpacitySizeSection(settings: SettingsRepository) {
-    var opacity by remember { mutableFloatStateOf(settings.opacity) }
-    var sizeDp  by remember { mutableIntStateOf(settings.buttonSizeDp) }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.title_settings), style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(16.dp)); HorizontalDivider(); Spacer(Modifier.height(16.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.label_opacity), style = MaterialTheme.typography.bodyMedium)
-                Text("${(opacity * 100).toInt()}%", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Slider(value = opacity, onValueChange = { opacity = it },
-                onValueChangeFinished = { settings.opacity = opacity },
-                valueRange = 0.3f..1.0f, modifier = Modifier.fillMaxWidth())
-
-            Spacer(Modifier.height(12.dp))
-            Text(stringResource(R.string.label_size), style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(8.dp))
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SettingsRepository.SIZE_OPTIONS.forEachIndexed { i, dp ->
-                    SegmentedButton(
-                        shape    = SegmentedButtonDefaults.itemShape(i, SettingsRepository.SIZE_OPTIONS.size),
-                        onClick  = { sizeDp = dp; settings.buttonSizeDp = dp },
-                        selected = sizeDp == dp
-                    ) { Text(stringResource(SettingsRepository.SIZE_LABEL_RES[i])) }
-                }
-            }
-        }
-    }
-}
-
-// ── Reusable composables (ButtonPreview, ColorPickerRow, ColorPickerDialog, SliderRow, PermissionRow) ──
-
-@Composable
-private fun ButtonPreview(shape: String, outerColor: Color, innerColor: Color,
-    borderEnabled: Boolean, borderColor: Color, borderWidthDp: Int) {
-    val buttonSize = 72.dp
-    val innerSize  = (72 * 0.38f).dp
-    val cornerRadius: Dp = when (shape) {
-        SettingsRepository.SHAPE_CIRCLE       -> 36.dp
-        SettingsRepository.SHAPE_ROUNDED_RECT -> (72 * 0.28f).dp
-        else -> 36.dp
-    }
-    val outerShape = RoundedCornerShape(cornerRadius)
-    Box(modifier = Modifier.size(buttonSize).clip(outerShape).background(outerColor, outerShape)
-        .then(if (borderEnabled) Modifier.border(borderWidthDp.dp, borderColor, outerShape) else Modifier),
-        contentAlignment = Alignment.Center) {
-        Box(modifier = Modifier.size(innerSize).clip(CircleShape).background(innerColor, CircleShape))
-    }
-}
-
-@Composable
-private fun ColorPickerRow(label: String, color: Color, onClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
-                .padding(horizontal = 8.dp, vertical = 4.dp)) {
-            Text("#%06X".format(color.toArgb() and 0xFFFFFF),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(color)
-                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
-        }
-    }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Color Picker Dialog
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onConfirm: (Color) -> Unit) {
@@ -923,7 +1000,7 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onConfirm: 
     var alpha      by remember { mutableFloatStateOf(initial.alpha) }
     var hexInput   by remember { mutableStateOf("%08X".format(initial.toArgb())) }
     var hexError   by remember { mutableStateOf(false) }
-    val focusManager = LocalFocusManager.current
+    val focus = LocalFocusManager.current
 
     val currentColor by remember(hue, saturation, brightness, alpha) {
         derivedStateOf {
@@ -937,19 +1014,22 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onConfirm: 
         title = { Text(stringResource(R.string.title_color_picker)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp))
+                // Preview
+                Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp))
                     .background(Brush.horizontalGradient(listOf(Color.White, currentColor)))
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp)))
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp)))
+
                 SliderRow(stringResource(R.string.label_hue), hue, 0f..360f, "${hue.roundToInt()}°",
                     Brush.horizontalGradient(listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red))) { hue = it }
-                SliderRow(stringResource(R.string.label_saturation), saturation, 0f..1f, "${(saturation * 100).roundToInt()}%",
+                SliderRow(stringResource(R.string.label_saturation), saturation, 0f..1f, "${(saturation*100).roundToInt()}%",
                     Brush.horizontalGradient(listOf(Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0f, brightness))),
                         Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, brightness)))))) { saturation = it }
-                SliderRow(stringResource(R.string.label_brightness), brightness, 0f..1f, "${(brightness * 100).roundToInt()}%",
+                SliderRow(stringResource(R.string.label_brightness), brightness, 0f..1f, "${(brightness*100).roundToInt()}%",
                     Brush.horizontalGradient(listOf(Color.Black,
                         Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, 1f)))))) { brightness = it }
-                SliderRow(stringResource(R.string.label_alpha), alpha, 0f..1f, "${(alpha * 100).roundToInt()}%",
+                SliderRow(stringResource(R.string.label_alpha), alpha, 0f..1f, "${(alpha*100).roundToInt()}%",
                     Brush.horizontalGradient(listOf(Color.Transparent, currentColor.copy(alpha = 1f)))) { alpha = it }
+
                 HorizontalDivider()
                 OutlinedTextField(value = hexInput, onValueChange = { raw ->
                     val clean = raw.uppercase().filter { it.isLetterOrDigit() }.take(8)
@@ -963,10 +1043,10 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onConfirm: 
                             hexError = false
                         } catch (_: Exception) { hexError = true }
                     } else { hexError = clean.isNotEmpty() }
-                }, label = { Text("HEX (RRGGBB / AARRGGBB)") }, isError = hexError,
-                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                }, label = { Text("HEX") }, isError = hexError, singleLine = true,
+                    shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
                     prefix = { Text("#") })
             }
         },
@@ -979,12 +1059,14 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onConfirm: 
 private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>,
     valueText: String, trackBrush: Brush, onValueChange: (Float) -> Unit) {
     Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(valueText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(valueText, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Box(modifier = Modifier.fillMaxWidth().height(4.dp).align(Alignment.Center)
+        Box(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth().height(4.dp).align(Alignment.Center)
                 .padding(horizontal = 10.dp).clip(RoundedCornerShape(2.dp)).background(trackBrush))
             Slider(value = value, onValueChange = onValueChange, valueRange = range,
                 modifier = Modifier.fillMaxWidth(),
@@ -993,27 +1075,68 @@ private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRan
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared UI helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
-private fun PermissionRow(label: String, granted: Boolean, onRequest: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = if (granted)
-            MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant)) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painter = painterResource(if (granted) R.drawable.ic_check_circle else R.drawable.ic_circle_outline),
-                    contentDescription = null, modifier = Modifier.size(20.dp),
-                    tint = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.size(12.dp))
-                Text(label, style = MaterialTheme.typography.bodyMedium)
-            }
-            if (!granted) {
-                OutlinedButton(onClick = onRequest, modifier = Modifier.height(32.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) {
-                    Text(stringResource(R.string.action_activate), style = MaterialTheme.typography.labelSmall)
-                }
-            }
+private fun ModernCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        shape           = RoundedCornerShape(20.dp),
+        color           = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
+        modifier        = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp), content = content)
+    }
+}
+
+@Composable
+private fun ModernDivider(modifier: Modifier = Modifier) {
+    HorizontalDivider(modifier = modifier, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+}
+
+@Composable
+private fun SettingRow(label: String, content: @Composable () -> Unit) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(6.dp))
+        content()
+    }
+}
+
+@Composable
+private fun ColorChip(label: String, color: Color, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+        .clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
+        Arrangement.SpaceBetween, Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("#%06X".format(color.toArgb() and 0xFFFFFF),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+            Box(Modifier.size(28.dp).clip(CircleShape).background(color)
+                .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape))
         }
+    }
+}
+
+@Composable
+private fun ButtonPreview(shape: String, outerColor: Color, innerColor: Color,
+    borderEnabled: Boolean, borderColor: Color, borderWidthDp: Int) {
+    val size   = 72.dp
+    val inner  = (72 * 0.38f).dp
+    val corner : Dp = when (shape) {
+        SettingsRepository.SHAPE_CIRCLE       -> 36.dp
+        SettingsRepository.SHAPE_ROUNDED_RECT -> (72 * 0.28f).dp
+        else -> 36.dp
+    }
+    val s = RoundedCornerShape(corner)
+    Box(Modifier.size(size).shadow(8.dp, s).clip(s).background(outerColor, s)
+        .then(if (borderEnabled) Modifier.border(borderWidthDp.dp, borderColor, s) else Modifier),
+        contentAlignment = Alignment.Center) {
+        Box(Modifier.size(inner).clip(CircleShape).background(innerColor, CircleShape))
     }
 }
