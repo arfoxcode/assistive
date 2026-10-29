@@ -6,10 +6,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.os.IBinder
@@ -41,17 +45,18 @@ class FloatingButtonService : Service() {
     private var initialTouchY = 0f
     private var isDragging = false
     private var menuOverlayView: View? = null
+    private var favoritesOverlayView: View? = null
 
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
-            SettingsRepository.KEY_OPACITY     -> floatingView.alpha = settings.opacity
+            SettingsRepository.KEY_OPACITY       -> floatingView.alpha = settings.opacity
             SettingsRepository.KEY_BUTTON_SIZE,
             SettingsRepository.KEY_BUTTON_SHAPE,
             SettingsRepository.KEY_OUTER_COLOR,
             SettingsRepository.KEY_INNER_COLOR,
             SettingsRepository.KEY_BORDER_ENABLED,
             SettingsRepository.KEY_BORDER_COLOR,
-            SettingsRepository.KEY_BORDER_WIDTH -> rebuildButton()
+            SettingsRepository.KEY_BORDER_WIDTH  -> rebuildButton()
         }
     }
 
@@ -78,6 +83,7 @@ class FloatingButtonService : Service() {
     override fun onDestroy() {
         isRunning = false
         settings.prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
+        dismissFavoritesImmediate()
         dismissMenuImmediate()
         if (::floatingView.isInitialized) windowManager.removeView(floatingView)
         super.onDestroy()
@@ -114,14 +120,13 @@ class FloatingButtonService : Service() {
     }
 
     private fun buildButtonView(sizePx: Int): View {
-        val shape = settings.buttonShape
-        val outerColor = settings.outerColor
-        val innerColor = settings.innerColor
+        val shape        = settings.buttonShape
+        val outerColor   = settings.outerColor
+        val innerColor   = settings.innerColor
         val borderEnabled = settings.borderEnabled
-        val borderColor = settings.borderColor
+        val borderColor  = settings.borderColor
         val borderWidthPx = dpToPx(settings.borderWidthDp)
 
-        // Corner radius: circle = half size, rounded_rect = 28% size
         val cornerRadius = when (shape) {
             SettingsRepository.SHAPE_CIRCLE       -> sizePx / 2f
             SettingsRepository.SHAPE_ROUNDED_RECT -> sizePx * 0.28f
@@ -132,20 +137,13 @@ class FloatingButtonService : Service() {
             this.shape = GradientDrawable.RECTANGLE
             setColor(outerColor)
             setCornerRadius(cornerRadius)
-            if (borderEnabled) {
-                setStroke(borderWidthPx, borderColor)
-            }
+            if (borderEnabled) setStroke(borderWidthPx, borderColor)
         }
 
-        val innerCorner = when (shape) {
-            SettingsRepository.SHAPE_CIRCLE       -> sizePx * 0.52f / 2f
-            SettingsRepository.SHAPE_ROUNDED_RECT -> sizePx * 0.52f * 0.28f
-            else                                   -> sizePx * 0.52f / 2f
-        }
+        // Inner dot selalu lingkaran sempurna
         val innerBg = GradientDrawable().apply {
-            this.shape = GradientDrawable.RECTANGLE
+            this.shape = GradientDrawable.OVAL
             setColor(innerColor)
-            setCornerRadius(innerCorner)
         }
 
         val innerSizePx = (sizePx * 0.38f).toInt()
@@ -166,22 +164,18 @@ class FloatingButtonService : Service() {
     private fun onTouch(view: View, event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                initialX = params.x
-                initialY = params.y
-                initialTouchX = event.rawX
-                initialTouchY = event.rawY
+                initialX = params.x; initialY = params.y
+                initialTouchX = event.rawX; initialTouchY = event.rawY
                 isDragging = false
                 floatingView.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).start()
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = (event.rawX - initialTouchX).toInt()
                 val dy = (event.rawY - initialTouchY).toInt()
-                if (!isDragging && (kotlin.math.abs(dx) > DRAG_THRESHOLD || kotlin.math.abs(dy) > DRAG_THRESHOLD)) {
+                if (!isDragging && (kotlin.math.abs(dx) > DRAG_THRESHOLD || kotlin.math.abs(dy) > DRAG_THRESHOLD))
                     isDragging = true
-                }
                 if (isDragging) {
-                    params.x = initialX + dx
-                    params.y = initialY + dy
+                    params.x = initialX + dx; params.y = initialY + dy
                     windowManager.updateViewLayout(floatingView, params)
                 }
             }
@@ -194,16 +188,15 @@ class FloatingButtonService : Service() {
     }
 
     private fun snapToEdge() {
-        val screenWidth = resources.displayMetrics.widthPixels
+        val screenWidth  = resources.displayMetrics.widthPixels
         val screenHeight = resources.displayMetrics.heightPixels
-        val sizePx = dpToPx(settings.buttonSizeDp)
-        val targetX = if (params.x + sizePx / 2 < screenWidth / 2) 0 else screenWidth - sizePx
-        val targetY = params.y.coerceIn(0, screenHeight - sizePx)
-        val startX = params.x
-        val startY = params.y
+        val sizePx   = dpToPx(settings.buttonSizeDp)
+        val targetX  = if (params.x + sizePx / 2 < screenWidth / 2) 0 else screenWidth - sizePx
+        val targetY  = params.y.coerceIn(0, screenHeight - sizePx)
+        val startX   = params.x; val startY = params.y
 
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = SNAP_DURATION_MS
+            duration     = SNAP_DURATION_MS
             interpolator = DecelerateInterpolator()
             addUpdateListener { anim ->
                 val f = anim.animatedValue as Float
@@ -230,7 +223,6 @@ class FloatingButtonService : Service() {
             PixelFormat.TRANSLUCENT
         ))
         menuOverlayView = overlay
-
         val frame = overlay as FrameLayout
         frame.getChildAt(0).also { it.alpha = 0f; it.animate().alpha(1f).setDuration(MENU_SHOW_MS).start() }
         frame.getChildAt(1).also {
@@ -242,11 +234,11 @@ class FloatingButtonService : Service() {
 
     private fun hideMenu() {
         val overlay = menuOverlayView ?: return
+        dismissFavoritesImmediate()
         val frame = overlay as FrameLayout
         frame.getChildAt(1).animate()
             .scaleX(0.75f).scaleY(0.75f).alpha(0f).setDuration(MENU_HIDE_MS).start()
-        frame.getChildAt(0).animate()
-            .alpha(0f).setDuration(MENU_HIDE_MS)
+        frame.getChildAt(0).animate().alpha(0f).setDuration(MENU_HIDE_MS)
             .withEndAction {
                 try { windowManager.removeView(overlay) } catch (_: Exception) {}
                 menuOverlayView = null
@@ -262,99 +254,379 @@ class FloatingButtonService : Service() {
 
     private fun buildMenuOverlay(): FrameLayout {
         val overlay = FrameLayout(this)
-
         val dim = View(this).apply {
             setBackgroundColor(Color.argb(110, 0, 0, 0))
             setOnClickListener { hideMenu() }
             layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
         }
-
         val panel = buildMenuPanel()
         panel.layoutParams = FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER)
             .also { it.setMargins(dpToPx(32), 0, dpToPx(32), 0) }
-        panel.setOnClickListener { /* consume */ }
-
         overlay.addView(dim)
         overlay.addView(panel)
         return overlay
     }
 
-    private fun buildMenuPanel(): LinearLayout {
-        val actions = settings.menuActions.ifEmpty { SettingsRepository.DEFAULT_ACTIONS }
+    // ── Menu panel dengan mixed-size grid ────────────────────────────────────
+
+    private fun buildMenuPanel(): View {
+        val slots = settings.popupSlots.filter { !it.isEmpty }
+
         val bg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dpToPx(20).toFloat()
             setColor(Color.argb(235, 28, 28, 30))
         }
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+
+        val container = FrameLayout(this).apply {
             background = bg
             val p = dpToPx(12)
             setPadding(p, p, p, p)
-            actions.chunked(2).forEach { row ->
-                addView(LinearLayout(context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    row.forEach { addView(buildMenuItem(it)) }
-                })
-            }
         }
+
+        val gridView = buildMixedGrid(slots)
+        container.addView(gridView)
+        return container
     }
 
-    private fun buildMenuItem(action: MenuAction): View {
-        val containerSize = dpToPx(MENU_ITEM_SIZE_DP)
-        val iconSize = dpToPx(46)
-        val iconPad = dpToPx(11)
+    /**
+     * Grid 3 kolom dengan tile yang bisa span 1×1, 2×2, atau 3×3.
+     * Algoritma: scan cell per cell, skip cell yang sudah dipakai tile besar.
+     */
+    private fun buildMixedGrid(slots: List<PopupSlot>): View {
+        val cellDp  = MENU_ITEM_SIZE_DP
+        val cellPx  = dpToPx(cellDp)
+        val cols    = 3
+        val rows    = 3
+        val occupied = Array(rows) { BooleanArray(cols) }
+
+        // RelativeLayout untuk positioning manual
+        val grid = android.widget.RelativeLayout(this).apply {
+            val size = cellPx * cols
+            layoutParams = LinearLayout.LayoutParams(size, size)
+        }
+
+        var slotIdx = 0
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                if (occupied[row][col]) continue
+                val slot = slots.getOrNull(slotIdx) ?: break
+                slotIdx++
+
+                val size    = slot.tileSize.coerceIn(1, 3)
+                val maxSpan = minOf(size, cols - col, rows - row)
+                val span    = maxSpan
+
+                // Tandai cell yang dipakai
+                for (r in row until row + span) {
+                    for (c in col until col + span) {
+                        if (r < rows && c < cols) occupied[r][c] = true
+                    }
+                }
+
+                val tilePx  = cellPx * span
+                val tileView = buildTileView(slot, tilePx)
+
+                val lp = android.widget.RelativeLayout.LayoutParams(tilePx, tilePx).apply {
+                    leftMargin = col * cellPx
+                    topMargin  = row * cellPx
+                }
+                tileView.layoutParams = lp
+                grid.addView(tileView)
+            }
+        }
+        return grid
+    }
+
+    private fun buildTileView(slot: PopupSlot, sizePx: Int): View {
+        val iconSize = (sizePx * 0.52f).toInt()
+        val iconPad  = (sizePx * 0.14f).toInt()
+        val margin   = dpToPx(4)
 
         val iconBg = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(Color.argb(75, 255, 255, 255))
         }
+
         val icon = ImageView(this).apply {
-            setImageResource(action.iconRes())
-            setColorFilter(Color.WHITE)
-            background = iconBg
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(iconPad, iconPad, iconPad, iconPad)
+            background = iconBg
             layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
                 .also { it.gravity = Gravity.CENTER_HORIZONTAL }
+
+            when (slot.type) {
+                PopupSlot.SlotType.ACTION -> {
+                    slot.action?.let {
+                        setImageResource(it.iconRes())
+                        setColorFilter(Color.WHITE)
+                    }
+                }
+                PopupSlot.SlotType.SHORTCUT -> {
+                    loadShortcutIcon(this, slot.shortcut)
+                }
+                else -> {}
+            }
         }
+
+        val labelText = when (slot.type) {
+            PopupSlot.SlotType.ACTION   -> slot.action?.let { getString(it.labelRes()) } ?: ""
+            PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label
+                ?: slot.shortcut?.packageName?.let { getAppLabel(it) } ?: ""
+            else -> ""
+        }
+
         val label = TextView(this).apply {
-            text = getString(action.labelRes())
-            textSize = 10f
+            text     = labelText
+            textSize = if (sizePx > dpToPx(MENU_ITEM_SIZE_DP)) 12f else 10f
             setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
+            gravity  = Gravity.CENTER
             maxLines = 1
             layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
-                .also { it.gravity = Gravity.CENTER_HORIZONTAL; it.topMargin = dpToPx(5) }
+                .also { it.gravity = Gravity.CENTER_HORIZONTAL; it.topMargin = dpToPx(4) }
         }
+
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(containerSize, containerSize)
+            gravity     = Gravity.CENTER
+            setPadding(margin, margin, margin, margin)
             addView(icon)
             addView(label)
             setOnClickListener {
                 animate().scaleX(0.88f).scaleY(0.88f).setDuration(70).withEndAction {
                     animate().scaleX(1f).scaleY(1f).setDuration(70).start()
                 }.start()
-                onMenuAction(action)
+                onSlotClick(slot)
             }
         }
     }
 
-    private fun onMenuAction(action: MenuAction) {
-        hideMenu()
-        when (action) {
-            MenuAction.VOLUME_UP   -> adjustVolume(AudioManager.ADJUST_RAISE)
-            MenuAction.VOLUME_DOWN -> adjustVolume(AudioManager.ADJUST_LOWER)
-            MenuAction.OPEN_APP    -> openApp()
-            MenuAction.SCREENSHOT  -> {
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    AssistiveMenuAccessibilityService.instance?.execute(action)
-                }, SCREENSHOT_DELAY_MS)
+    private fun onSlotClick(slot: PopupSlot) {
+        when (slot.type) {
+            PopupSlot.SlotType.ACTION -> {
+                when (slot.action) {
+                    MenuAction.FAVORITES  -> showFavorites()
+                    MenuAction.VOLUME_UP  -> { hideMenu(); adjustVolume(AudioManager.ADJUST_RAISE) }
+                    MenuAction.VOLUME_DOWN -> { hideMenu(); adjustVolume(AudioManager.ADJUST_LOWER) }
+                    MenuAction.OPEN_APP   -> { hideMenu(); openApp() }
+                    MenuAction.SCREENSHOT -> {
+                        hideMenu()
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            AssistiveMenuAccessibilityService.instance?.execute(slot.action!!)
+                        }, SCREENSHOT_DELAY_MS)
+                    }
+                    else -> slot.action?.let {
+                        hideMenu()
+                        AssistiveMenuAccessibilityService.instance?.execute(it)
+                    }
+                }
             }
-            else -> AssistiveMenuAccessibilityService.instance?.execute(action)
+            PopupSlot.SlotType.SHORTCUT -> {
+                hideMenu()
+                launchApp(slot.shortcut?.packageName)
+            }
+            else -> {}
         }
+    }
+
+    // ── Favorites panel ──────────────────────────────────────────────────────
+
+    private fun showFavorites() {
+        if (favoritesOverlayView != null) return
+        val panel = buildFavoritesPanel()
+        val lp = WindowManager.LayoutParams(
+            MATCH_PARENT, MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        windowManager.addView(panel, lp)
+        favoritesOverlayView = panel
+
+        panel.alpha = 0f
+        panel.scaleX = 0.85f; panel.scaleY = 0.85f
+        panel.animate().alpha(1f).scaleX(1f).scaleY(1f)
+            .setDuration(MENU_SHOW_MS).setInterpolator(DecelerateInterpolator()).start()
+    }
+
+    private fun hideFavorites() {
+        val panel = favoritesOverlayView ?: return
+        panel.animate().alpha(0f).scaleX(0.85f).scaleY(0.85f).setDuration(MENU_HIDE_MS)
+            .withEndAction {
+                try { windowManager.removeView(panel) } catch (_: Exception) {}
+                favoritesOverlayView = null
+            }.start()
+    }
+
+    private fun dismissFavoritesImmediate() {
+        favoritesOverlayView?.let {
+            try { windowManager.removeView(it) } catch (_: Exception) {}
+            favoritesOverlayView = null
+        }
+    }
+
+    private fun buildFavoritesPanel(): FrameLayout {
+        val overlay = FrameLayout(this)
+
+        val dim = View(this).apply {
+            setBackgroundColor(Color.argb(110, 0, 0, 0))
+            setOnClickListener { hideFavorites() }
+            layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+        }
+
+        val slots   = settings.favoriteSlots
+        val bg      = GradientDrawable().apply {
+            shape        = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(20).toFloat()
+            setColor(Color.argb(235, 28, 28, 30))
+        }
+
+        val panel = FrameLayout(this).apply {
+            background = bg
+            val p = dpToPx(12)
+            setPadding(p, p, p, p)
+        }
+
+        val grid = buildFavoritesGrid(slots)
+        panel.addView(grid)
+
+        // Tombol close di pojok kanan atas
+        val closeBtn = TextView(this).apply {
+            text      = "✕"
+            textSize  = 16f
+            setTextColor(Color.WHITE)
+            gravity   = Gravity.CENTER
+            val sz    = dpToPx(32)
+            layoutParams = FrameLayout.LayoutParams(sz, sz, Gravity.TOP or Gravity.END)
+                .also { it.setMargins(0, dpToPx(-4), dpToPx(-4), 0) }
+            setOnClickListener { hideFavorites() }
+        }
+
+        panel.addView(closeBtn)
+
+        panel.layoutParams = FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER)
+            .also { it.setMargins(dpToPx(32), 0, dpToPx(32), 0) }
+
+        overlay.addView(dim)
+        overlay.addView(panel)
+        return overlay
+    }
+
+    private fun buildFavoritesGrid(slots: List<AppShortcut>): View {
+        val cellPx   = dpToPx(MENU_ITEM_SIZE_DP)
+        val cols     = 3
+        val rows     = 3
+        val occupied = Array(rows) { BooleanArray(cols) }
+
+        val grid = android.widget.RelativeLayout(this).apply {
+            val size = cellPx * cols
+            layoutParams = LinearLayout.LayoutParams(size, size)
+        }
+
+        var slotIdx = 0
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                if (occupied[row][col]) continue
+                val slot  = slots.getOrNull(slotIdx) ?: break
+                slotIdx++
+
+                val span = slot.tileSize.coerceIn(1, minOf(3, cols - col, rows - row))
+                for (r in row until row + span)
+                    for (c in col until col + span)
+                        if (r < rows && c < cols) occupied[r][c] = true
+
+                val tilePx   = cellPx * span
+                val tileView = buildFavoriteTile(slot, tilePx)
+                val lp = android.widget.RelativeLayout.LayoutParams(tilePx, tilePx).apply {
+                    leftMargin = col * cellPx
+                    topMargin  = row * cellPx
+                }
+                tileView.layoutParams = lp
+                grid.addView(tileView)
+            }
+        }
+        return grid
+    }
+
+    private fun buildFavoriteTile(shortcut: AppShortcut, sizePx: Int): View {
+        val iconSize = (sizePx * 0.52f).toInt()
+        val margin   = dpToPx(4)
+
+        val icon = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+                .also { it.gravity = Gravity.CENTER_HORIZONTAL }
+            if (!shortcut.isEmpty) {
+                loadShortcutIcon(this, AppShortcut(
+                    packageName = shortcut.packageName,
+                    customIcon  = shortcut.customIcon
+                ))
+            } else {
+                setImageResource(android.R.drawable.ic_menu_add)
+                setColorFilter(Color.argb(120, 255, 255, 255))
+            }
+        }
+
+        val label = TextView(this).apply {
+            text     = if (!shortcut.isEmpty)
+                shortcut.label ?: shortcut.packageName?.let { getAppLabel(it) } ?: ""
+            else ""
+            textSize = if (sizePx > dpToPx(MENU_ITEM_SIZE_DP)) 12f else 10f
+            setTextColor(Color.WHITE)
+            gravity  = Gravity.CENTER
+            maxLines = 1
+            layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+                .also { it.gravity = Gravity.CENTER_HORIZONTAL; it.topMargin = dpToPx(4) }
+        }
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity     = Gravity.CENTER
+            setPadding(margin, margin, margin, margin)
+            addView(icon)
+            addView(label)
+            setOnClickListener {
+                if (!shortcut.isEmpty) {
+                    hideFavorites()
+                    hideMenu()
+                    launchApp(shortcut.packageName)
+                }
+            }
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private fun loadShortcutIcon(imageView: ImageView, shortcut: AppShortcut?) {
+        if (shortcut == null) return
+        try {
+            if (!shortcut.customIcon.isNullOrEmpty()) {
+                val bmp = AppShortcut.decodeBitmap(shortcut.customIcon)
+                if (bmp != null) { imageView.setImageBitmap(bmp); return }
+            }
+            shortcut.packageName?.let { pkg ->
+                val drawable = packageManager.getApplicationIcon(pkg)
+                imageView.setImageDrawable(drawable)
+            }
+        } catch (_: Exception) {
+            imageView.setImageResource(android.R.drawable.sym_def_app_icon)
+        }
+    }
+
+    private fun getAppLabel(packageName: String): String {
+        return try {
+            val info = packageManager.getApplicationInfo(packageName, 0)
+            packageManager.getApplicationLabel(info).toString()
+        } catch (_: Exception) { packageName }
+    }
+
+    private fun launchApp(packageName: String?) {
+        packageName ?: return
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(packageName)
+                ?.apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED }
+            if (intent != null) startActivity(intent)
+        } catch (_: Exception) {}
     }
 
     private fun adjustVolume(direction: Int) {
@@ -364,12 +636,13 @@ class FloatingButtonService : Service() {
 
     private fun openApp() {
         startActivity(
-            android.content.Intent(this, MainActivity::class.java).apply {
-                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
-                        android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
         )
     }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
     // ── Notification ─────────────────────────────────────────────────────────
 
@@ -399,23 +672,19 @@ class FloatingButtonService : Service() {
             .build()
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
-
     companion object {
         var isRunning = false
             private set
 
         const val ACTION_STOP = "com.joaohouto.assistivemenutool.STOP"
 
-        private const val NOTIFICATION_ID    = 1001
-        private const val CHANNEL_ID         = "assistive_menu_tool"
-        private const val MENU_ITEM_SIZE_DP  = 90
-        private const val DRAG_THRESHOLD     = 8
-        private const val SNAP_DURATION_MS   = 260L
-        private const val MENU_SHOW_MS       = 200L
-        private const val MENU_HIDE_MS       = 150L
+        private const val NOTIFICATION_ID     = 1001
+        private const val CHANNEL_ID          = "assistive_menu_tool"
+        const val MENU_ITEM_SIZE_DP           = 90
+        private const val DRAG_THRESHOLD      = 8
+        private const val SNAP_DURATION_MS    = 260L
+        private const val MENU_SHOW_MS        = 200L
+        private const val MENU_HIDE_MS        = 150L
         private const val SCREENSHOT_DELAY_MS = 400L
     }
 }

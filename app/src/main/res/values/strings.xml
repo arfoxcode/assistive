@@ -15,6 +15,7 @@
     <string name="action_notifications">Notifications</string>
     <string name="action_quick_settings">Quick Settings</string>
     <string name="action_open_app">Settings</string>
+    <string name="action_favorites">Favorites</string>
 
     <string name="permission_overlay">Display over other apps</string>
     <string name="permission_accessibility">Accessibility service</string>
@@ -36,7 +37,6 @@
     <string name="accessibility_disclosure_message">Assistive Menu Tool requires the AccessibilityService API exclusively to allow you to perform global system actions (such as Home, Back, Recent Apps, Lock Screen, Take Screenshot, and Notifications) via the floating button.\n\n• The app does NOT monitor your screen.\n• The app does NOT read or type information for you.\n• The app does NOT collect or share any personal or sensitive user data.</string>
     <string name="action_agree_and_continue">Agree and Continue</string>
     <string name="action_cancel">Cancel</string>
-
     <string name="accessibility_service_description">Allows Assistive Menu Tool to perform actions like back, home, recents, and screen lock</string>
 
     <!-- Button Appearance -->
@@ -58,4 +58,25 @@
     <string name="label_brightness">Brightness</string>
     <string name="label_alpha">Opacity</string>
     <string name="action_apply">Apply</string>
+
+    <!-- Popup slots -->
+    <string name="title_popup_slots">Menu Layout</string>
+    <string name="label_slot">Slot %1$d</string>
+    <string name="slot_empty">Empty</string>
+    <string name="slot_type_action">System Action</string>
+    <string name="slot_type_shortcut">App Shortcut</string>
+    <string name="action_choose_app">Choose App</string>
+    <string name="action_clear_slot">Clear Slot</string>
+    <string name="label_tile_size">Tile Size</string>
+    <string name="tile_size_1x1">1×1</string>
+    <string name="tile_size_2x2">2×2</string>
+    <string name="tile_size_3x3">3×3</string>
+
+    <!-- Favorites -->
+    <string name="title_favorites">Favorite Apps</string>
+    <string name="label_favorite_slot">Favorite %1$d</string>
+    <string name="favorites_empty">No favorites yet.\nTap a slot to add an app.</string>
+    <string name="action_edit_label">Edit Label</string>
+    <string name="action_change_icon">Change Icon</string>
+    <string name="hint_custom_label">Custom label (optional)</string>
 </resources>
