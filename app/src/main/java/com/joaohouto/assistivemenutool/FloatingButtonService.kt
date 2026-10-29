@@ -47,6 +47,13 @@ class FloatingButtonService : Service() {
     private var menuOverlayView: View? = null
     private var favoritesOverlayView: View? = null
 
+    // ── Gesture tracking ─────────────────────────────────────────────────────
+    private val gestureHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var lastTapTime   = 0L
+    private var tapCount      = 0
+    private var longPressRunnable: Runnable? = null
+    private var isLongPress   = false
+
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
             SettingsRepository.KEY_OPACITY       -> floatingView.alpha = settings.opacity
@@ -164,27 +171,132 @@ class FloatingButtonService : Service() {
     private fun onTouch(view: View, event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                initialX = params.x; initialY = params.y
+                initialX      = params.x; initialY = params.y
                 initialTouchX = event.rawX; initialTouchY = event.rawY
-                isDragging = false
+                isDragging    = false
+                isLongPress   = false
+
                 floatingView.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).start()
+
+                // Jadwalkan long press
+                val lp = Runnable {
+                    if (!isDragging) {
+                        isLongPress = true
+                        floatingView.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
+                        // Haptic feedback ringan lewat performHapticFeedback
+                        floatingView.performHapticFeedback(
+                            android.view.HapticFeedbackConstants.LONG_PRESS
+                        )
+                        onLongPress()
+                    }
+                }
+                longPressRunnable = lp
+                gestureHandler.postDelayed(lp, LONG_PRESS_MS)
             }
+
             MotionEvent.ACTION_MOVE -> {
                 val dx = (event.rawX - initialTouchX).toInt()
                 val dy = (event.rawY - initialTouchY).toInt()
-                if (!isDragging && (kotlin.math.abs(dx) > DRAG_THRESHOLD || kotlin.math.abs(dy) > DRAG_THRESHOLD))
+                if (!isDragging && (kotlin.math.abs(dx) > DRAG_THRESHOLD ||
+                                    kotlin.math.abs(dy) > DRAG_THRESHOLD)) {
                     isDragging = true
+                    // Batalkan long press jika mulai drag
+                    longPressRunnable?.let { gestureHandler.removeCallbacks(it) }
+                    longPressRunnable = null
+                }
                 if (isDragging) {
                     params.x = initialX + dx; params.y = initialY + dy
                     windowManager.updateViewLayout(floatingView, params)
                 }
             }
+
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 floatingView.animate().scaleX(1f).scaleY(1f).setDuration(80).start()
-                if (isDragging) snapToEdge() else onButtonClick()
+
+                // Batalkan long press jika jari diangkat lebih cepat
+                longPressRunnable?.let { gestureHandler.removeCallbacks(it) }
+                longPressRunnable = null
+
+                when {
+                    isDragging    -> snapToEdge()
+                    isLongPress   -> { /* sudah dihandle di Runnable */ }
+                    else          -> onTap()
+                }
             }
         }
         return true
+    }
+
+    // ── Gesture actions ───────────────────────────────────────────────────────
+
+    private fun onTap() {
+        val now = System.currentTimeMillis()
+        if (now - lastTapTime < DOUBLE_TAP_MS) {
+            // Double tap — batalkan pending single tap, lakukan double tap action
+            tapCount = 0
+            lastTapTime = 0L
+            gestureHandler.removeCallbacksAndMessages(SINGLE_TAP_TOKEN)
+            onDoubleTap()
+        } else {
+            // Mungkin single tap — tunggu sebentar untuk cek apakah ada tap kedua
+            tapCount = 1
+            lastTapTime = now
+            gestureHandler.postAtTime({
+                if (tapCount == 1) {
+                    tapCount = 0
+                    onSingleTap()
+                }
+            }, SINGLE_TAP_TOKEN, android.os.SystemClock.uptimeMillis() + DOUBLE_TAP_MS)
+        }
+    }
+
+    private fun onSingleTap() {
+        // Single tap → buka/tutup menu
+        if (menuOverlayView != null) hideMenu() else showMenu()
+    }
+
+    private fun onDoubleTap() {
+        // Double tap → lock screen
+        if (menuOverlayView != null) hideMenu()
+        AssistiveMenuAccessibilityService.instance?.execute(MenuAction.LOCK)
+        // Animasi feedback
+        floatingView.animate().scaleX(0.8f).scaleY(0.8f).setDuration(80).withEndAction {
+            floatingView.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+        }.start()
+    }
+
+    private fun onLongPress() {
+        // Long press → action yang dikonfigurasi user
+        if (menuOverlayView != null) hideMenu()
+        executeLongPressAction(settings.longPressAction)
+    }
+
+    private fun executeLongPressAction(action: MenuAction) {
+        when (action) {
+            MenuAction.FAVORITES  -> {
+                if (menuOverlayView != null) showFavorites()
+                else { showMenu(); showFavorites() }
+            }
+            MenuAction.VOLUME_UP   -> adjustVolume(AudioManager.ADJUST_RAISE)
+            MenuAction.VOLUME_DOWN -> adjustVolume(AudioManager.ADJUST_LOWER)
+            MenuAction.OPEN_APP    -> openApp()
+            MenuAction.SCREENSHOT  -> {
+                val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                handler.postDelayed({
+                    floatingView.visibility = View.INVISIBLE
+                    handler.postDelayed({
+                        AssistiveMenuAccessibilityService.instance?.execute(action)
+                        handler.postDelayed({
+                            floatingView.visibility = View.VISIBLE
+                            floatingView.alpha = 0f
+                            floatingView.animate().alpha(settings.opacity)
+                                .setDuration(SCREENSHOT_RESTORE_MS).start()
+                        }, SCREENSHOT_RESTORE_MS)
+                    }, SCREENSHOT_CAPTURE_MS)
+                }, SCREENSHOT_HIDE_MS)
+            }
+            else -> AssistiveMenuAccessibilityService.instance?.execute(action)
+        }
     }
 
     private fun snapToEdge() {
@@ -209,10 +321,6 @@ class FloatingButtonService : Service() {
     }
 
     // ── Menu ─────────────────────────────────────────────────────────────────
-
-    private fun onButtonClick() {
-        if (menuOverlayView != null) hideMenu() else showMenu()
-    }
 
     private fun showMenu() {
         val overlay = buildMenuOverlay()
@@ -703,12 +811,15 @@ class FloatingButtonService : Service() {
         private const val CHANNEL_ID          = "assistive_menu_tool"
         const val MENU_ITEM_SIZE_DP           = 86
         const val GAP_DP                      = 8
-        private const val DRAG_THRESHOLD      = 8
-        private const val SNAP_DURATION_MS    = 260L
-        private const val MENU_SHOW_MS        = 200L
-        private const val MENU_HIDE_MS        = 150L
-        private const val SCREENSHOT_HIDE_MS    = 150L  // tunggu animasi menu tutup
-        private const val SCREENSHOT_CAPTURE_MS  = 100L  // jeda setelah button hilang
-        private const val SCREENSHOT_RESTORE_MS  = 300L  // delay sebelum button muncul kembali
+        private const val DRAG_THRESHOLD        = 8
+        private const val SNAP_DURATION_MS      = 260L
+        private const val MENU_SHOW_MS          = 200L
+        private const val MENU_HIDE_MS          = 150L
+        private const val SCREENSHOT_HIDE_MS    = 150L   // tunggu animasi menu tutup
+        private const val SCREENSHOT_CAPTURE_MS = 100L   // jeda setelah button hilang
+        private const val SCREENSHOT_RESTORE_MS = 600L   // delay sebelum button muncul kembali (diupdate dari 300)
+        private const val LONG_PRESS_MS         = 500L   // durasi tahan untuk long press
+        private const val DOUBLE_TAP_MS         = 280L   // jendela waktu double tap
+        private val SINGLE_TAP_TOKEN            = Any()  // token untuk cancel pending single tap
     }
 }

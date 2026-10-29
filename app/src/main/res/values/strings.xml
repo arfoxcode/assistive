@@ -72,6 +72,16 @@
     <string name="tile_size_2x2">2×2</string>
     <string name="tile_size_3x3">3×3</string>
 
+    <!-- Gestures -->
+    <string name="title_gestures">Button Gestures</string>
+    <string name="label_single_tap">Single Tap</string>
+    <string name="label_double_tap">Double Tap</string>
+    <string name="label_long_press">Long Press</string>
+    <string name="gesture_open_menu">Open Menu</string>
+    <string name="gesture_lock_screen">Lock Screen</string>
+    <string name="gesture_custom">Custom Action</string>
+    <string name="label_long_press_action">Long press action</string>
+
     <!-- Favorites -->
     <string name="title_favorites">Favorite Apps</string>
     <string name="label_favorite_slot">Favorite %1$d</string>

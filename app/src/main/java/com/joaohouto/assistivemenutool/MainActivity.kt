@@ -237,6 +237,13 @@ private fun MainScreen(
                 Spacer(Modifier.height(24.dp))
             }
 
+            // ── Gestures ───────────────────────────────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_gestures))
+                GesturesSection(settings)
+                Spacer(Modifier.height(24.dp))
+            }
+
             // ── Popup slots ────────────────────────────────────────────────
             item {
                 SectionLabel(stringResource(R.string.title_popup_slots))
@@ -586,6 +593,137 @@ private fun SizeOpacitySection(settings: SettingsRepository) {
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Gestures Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun GesturesSection(settings: SettingsRepository) {
+    var longPressAction by remember { mutableStateOf(settings.longPressAction) }
+    var showPicker      by remember { mutableStateOf(false) }
+
+    if (showPicker) {
+        ActionPickerDialog(
+            onDismiss = { showPicker = false },
+            onPick    = { action ->
+                longPressAction = action
+                settings.longPressAction = action
+                showPicker = false
+            }
+        )
+    }
+
+    ModernCard {
+        // Single tap — fixed, tidak bisa diubah
+        GestureRow(
+            icon    = R.drawable.ic_home,
+            gesture = stringResource(R.string.label_single_tap),
+            action  = stringResource(R.string.gesture_open_menu),
+            locked  = true,
+            onClick = {}
+        )
+
+        ModernDivider(Modifier.padding(vertical = 8.dp))
+
+        // Double tap — fixed lock screen
+        GestureRow(
+            icon    = R.drawable.ic_lock,
+            gesture = stringResource(R.string.label_double_tap),
+            action  = stringResource(R.string.gesture_lock_screen),
+            locked  = true,
+            onClick = {}
+        )
+
+        ModernDivider(Modifier.padding(vertical = 8.dp))
+
+        // Long press — bisa dikonfigurasi
+        GestureRow(
+            icon    = R.drawable.ic_open_app,
+            gesture = stringResource(R.string.label_long_press),
+            action  = longPressAction.name
+                .replace('_', ' ')
+                .lowercase()
+                .replaceFirstChar { it.uppercase() },
+            locked  = false,
+            onClick = { showPicker = true }
+        )
+    }
+}
+
+@Composable
+private fun GestureRow(
+    icon: Int,
+    gesture: String,
+    action: String,
+    locked: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier              = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .then(if (!locked) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 4.dp, horizontal = 2.dp),
+        verticalAlignment     = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier            = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (locked) MaterialTheme.colorScheme.surfaceVariant
+                        else MaterialTheme.colorScheme.primaryContainer
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter           = painterResource(icon),
+                    contentDescription = null,
+                    modifier          = Modifier.size(18.dp),
+                    tint              = if (locked)
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    else
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text       = gesture,
+                    style      = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text  = action,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (locked)
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    else
+                        MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        if (!locked) {
+            Icon(
+                painter           = painterResource(R.drawable.ic_quick_settings),
+                contentDescription = null,
+                modifier          = Modifier.size(16.dp),
+                tint              = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+        } else {
+            // Kunci kecil untuk yang fixed
+            Icon(
+                painter           = painterResource(R.drawable.ic_lock),
+                contentDescription = null,
+                modifier          = Modifier.size(14.dp),
+                tint              = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+            )
         }
     }
 }
