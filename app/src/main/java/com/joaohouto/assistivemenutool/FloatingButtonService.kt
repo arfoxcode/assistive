@@ -828,15 +828,24 @@ class FloatingButtonService : Service() {
     /** Buka Bluetooth panel */
     private fun openBluetoothPanel() {
         try {
-            // Settings.Panel.ACTION_BLUETOOTH baru ada di API 33 (TIRAMISU)
-            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                Intent(android.provider.Settings.Panel.ACTION_BLUETOOTH)
+            // Pakai string literal supaya tidak bergantung pada konstanta SDK
+            // "android.settings.panel.action.BLUETOOTH" = Settings.Panel.ACTION_BLUETOOTH (API 33+)
+            val action = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                "android.settings.panel.action.BLUETOOTH"
             } else {
-                Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+                android.provider.Settings.ACTION_BLUETOOTH_SETTINGS
             }
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            startActivity(intent)
-        } catch (_: Exception) {}
+            startActivity(Intent(action).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
+        } catch (_: Exception) {
+            // Fallback ke settings biasa jika action tidak dikenali
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                })
+            } catch (_: Exception) {}
+        }
     }
 
     /** Set mode senyap (DND / silent) */
