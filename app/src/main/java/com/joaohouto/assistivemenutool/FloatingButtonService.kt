@@ -828,7 +828,8 @@ class FloatingButtonService : Service() {
     /** Buka Bluetooth panel */
     private fun openBluetoothPanel() {
         try {
-            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            // Settings.Panel.ACTION_BLUETOOTH baru ada di API 33 (TIRAMISU)
+            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                 Intent(android.provider.Settings.Panel.ACTION_BLUETOOTH)
             } else {
                 Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
