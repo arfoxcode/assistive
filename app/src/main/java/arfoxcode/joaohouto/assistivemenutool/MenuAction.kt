@@ -1,4 +1,4 @@
-package com.joaohouto.assistivemenutool
+package arfoxcode.joaohouto.assistivemenutool
 
 enum class MenuAction {
     // System navigation
@@ -22,7 +22,8 @@ enum class MenuAction {
     SILENT_MODE,    // mode senyap (DND)
     VIBRATE_MODE,   // mode getar
     VOLUME_PANEL,   // buka volume mixer lengkap
-    SYSTEM_PANEL;   // panel quick controls (9 tile fix)
+    SYSTEM_PANEL,   // panel quick controls (9 tile fix)
+    AIRPLANE_MODE;  // buka halaman airplane mode
 
     fun iconRes(): Int = when (this) {
         HOME           -> R.drawable.ic_home
@@ -45,6 +46,7 @@ enum class MenuAction {
         VIBRATE_MODE   -> R.drawable.ic_vibrate
         VOLUME_PANEL   -> R.drawable.ic_volume_panel
         SYSTEM_PANEL   -> R.drawable.ic_system_panel
+        AIRPLANE_MODE  -> R.drawable.ic_airplane
     }
 
     fun labelRes(): Int = when (this) {
@@ -68,5 +70,6 @@ enum class MenuAction {
         VIBRATE_MODE   -> R.string.action_vibrate_mode
         VOLUME_PANEL   -> R.string.action_volume_panel
         SYSTEM_PANEL   -> R.string.action_system_panel
+        AIRPLANE_MODE  -> R.string.action_airplane_mode
     }
 }

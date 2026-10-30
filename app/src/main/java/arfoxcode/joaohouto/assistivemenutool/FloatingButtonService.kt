@@ -1,4 +1,4 @@
-package com.joaohouto.assistivemenutool
+package arfoxcode.joaohouto.assistivemenutool
 
 import android.animation.ValueAnimator
 import android.app.Notification
@@ -526,6 +526,7 @@ class FloatingButtonService : Service() {
             MenuAction.BLUETOOTH     -> { hideMenu(); openBluetoothPanel() }
             MenuAction.SILENT_MODE   -> { hideMenu(); setSilentMode() }
             MenuAction.VIBRATE_MODE  -> { hideMenu(); setVibrateMode() }
+            MenuAction.AIRPLANE_MODE -> { hideMenu(); openAirplaneSettings() }
             MenuAction.SCREENSHOT    -> {
                 hideMenu()
                 val handler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -863,6 +864,15 @@ class FloatingButtonService : Service() {
         } catch (_: Exception) {}
     }
 
+    /** Buka halaman airplane mode */
+    private fun openAirplaneSettings() {
+        try {
+            startActivity(Intent(android.provider.Settings.ACTION_AIRPLANE_MODE_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
+        } catch (_: Exception) {}
+    }
+
     /** Set mode getar */
     private fun setVibrateMode() {
         try {
@@ -1050,15 +1060,15 @@ class FloatingButtonService : Service() {
         // 9 tile fixed
         data class SysTile(val iconRes: Int, val label: String, val action: () -> Unit)
         val tiles = listOf(
-            SysTile(R.drawable.ic_wifi,         getString(R.string.panel_wifi))    { hideSystemPanel(); openWifiPanel() },
-            SysTile(R.drawable.ic_cellular,     getString(R.string.panel_data))    { hideSystemPanel(); openCellularSettings() },
-            SysTile(R.drawable.ic_bluetooth,    getString(R.string.panel_bt))      { hideSystemPanel(); openBluetoothPanel() },
-            SysTile(R.drawable.ic_silent,       getString(R.string.panel_silent))  { hideSystemPanel(); setSilentMode() },
-            SysTile(R.drawable.ic_vibrate,      getString(R.string.panel_vibrate)) { hideSystemPanel(); setVibrateMode() },
-            SysTile(R.drawable.ic_flashlight,   getString(R.string.panel_flash))   { toggleFlashlight() },
-            SysTile(R.drawable.ic_volume_up,    getString(R.string.panel_vol_up))  { hideSystemPanel(); adjustVolume(AudioManager.ADJUST_RAISE) },
-            SysTile(R.drawable.ic_volume_down,  getString(R.string.panel_vol_down)){ hideSystemPanel(); adjustVolume(AudioManager.ADJUST_LOWER) },
-            SysTile(R.drawable.ic_open_app,     getString(R.string.panel_settings)){ hideSystemPanel(); openApp() }
+            SysTile(R.drawable.ic_wifi,         getString(R.string.panel_wifi))     { hideSystemPanel(); openWifiPanel() },
+            SysTile(R.drawable.ic_cellular,     getString(R.string.panel_data))     { hideSystemPanel(); openCellularSettings() },
+            SysTile(R.drawable.ic_bluetooth,    getString(R.string.panel_bt))       { hideSystemPanel(); openBluetoothPanel() },
+            SysTile(R.drawable.ic_airplane,     getString(R.string.panel_airplane)) { hideSystemPanel(); openAirplaneSettings() },
+            SysTile(R.drawable.ic_silent,       getString(R.string.panel_silent))   { hideSystemPanel(); setSilentMode() },
+            SysTile(R.drawable.ic_vibrate,      getString(R.string.panel_vibrate))  { hideSystemPanel(); setVibrateMode() },
+            SysTile(R.drawable.ic_flashlight,   getString(R.string.panel_flash))    { toggleFlashlight() },
+            SysTile(R.drawable.ic_volume_up,    getString(R.string.panel_vol_up))   { hideSystemPanel(); adjustVolume(AudioManager.ADJUST_RAISE) },
+            SysTile(R.drawable.ic_volume_down,  getString(R.string.panel_vol_down)) { hideSystemPanel(); adjustVolume(AudioManager.ADJUST_LOWER) }
         )
 
         val grid = android.widget.RelativeLayout(this).apply {
@@ -1165,7 +1175,7 @@ class FloatingButtonService : Service() {
         var isRunning = false
             private set
 
-        const val ACTION_STOP = "com.joaohouto.assistivemenutool.STOP"
+        const val ACTION_STOP = "arfoxcode.joaohouto.assistivemenutool.STOP"
 
         private const val NOTIFICATION_ID     = 1001
         private const val CHANNEL_ID          = "assistive_menu_tool"

@@ -1,4 +1,4 @@
-package com.joaohouto.assistivemenutool
+package arfoxcode.joaohouto.assistivemenutool
 
 import android.content.Context
 import android.content.SharedPreferences

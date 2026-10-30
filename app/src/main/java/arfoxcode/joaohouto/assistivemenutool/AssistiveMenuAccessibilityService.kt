@@ -1,4 +1,4 @@
-package com.joaohouto.assistivemenutool
+package arfoxcode.joaohouto.assistivemenutool
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent

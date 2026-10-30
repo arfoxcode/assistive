@@ -1,4 +1,4 @@
-package com.joaohouto.assistivemenutool.ui.theme
+package arfoxcode.joaohouto.assistivemenutool.ui.theme
 
 import android.app.Activity
 import android.os.Build

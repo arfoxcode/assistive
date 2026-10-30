@@ -82,6 +82,8 @@
     <string name="action_vibrate_mode">Vibrate Mode</string>
     <string name="action_volume_panel">Volume Panel</string>
     <string name="action_system_panel">System Panel</string>
+    <string name="action_airplane_mode">Airplane Mode</string>
+    <string name="panel_airplane">Airplane</string>
 
     <!-- Volume panel -->
     <string name="title_volume_panel">Volume</string>

@@ -1,4 +1,4 @@
-package com.joaohouto.assistivemenutool
+package arfoxcode.joaohouto.assistivemenutool
 
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.joaohouto.assistivemenutool.ui.theme.AssistiveMenuToolTheme
+import arfoxcode.joaohouto.assistivemenutool.ui.theme.AssistiveMenuToolTheme
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -110,15 +110,8 @@ class MainActivity : ComponentActivity() {
                 // Skip package sendiri
                 if (pkg == packageName) return@mapNotNull null
                 AppInfo(
-<<<<<<< HEAD
-                    packageName = pkg.packageName,
-                    // SESUDAH — aman, skip package yang applicationInfo-nya null
-                    val appInfo = pkg.applicationInfo ?: return@mapNotNull null
-                    label = pm.getApplicationLabel(appInfo).toString(),
-=======
                     packageName = pkg,
                     label       = pm.getApplicationLabel(ai).toString(),
->>>>>>> 1459a69 (fixed favourite button)
                     icon        = try {
                         val d   = pm.getApplicationIcon(pkg)
                         val w   = d.intrinsicWidth.coerceAtLeast(1)

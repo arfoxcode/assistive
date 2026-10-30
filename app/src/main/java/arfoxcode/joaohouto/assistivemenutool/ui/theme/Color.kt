@@ -1,4 +1,4 @@
-package com.joaohouto.assistivemenutool.ui.theme
+package arfoxcode.joaohouto.assistivemenutool.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.joaohouto.assistivemenutool"
+    namespace = "arfoxcode.joaohouto.assistivemenutool"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -41,7 +41,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.joaohouto.assistivemenutool"
+        applicationId = "arfoxcode.joaohouto.assistivemenutool"
         minSdk = 24
         targetSdk = 36
         versionCode = 5
