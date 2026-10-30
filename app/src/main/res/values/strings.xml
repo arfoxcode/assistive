@@ -72,6 +72,36 @@
     <string name="tile_size_2x2">2×2</string>
     <string name="tile_size_3x3">3×3</string>
 
+    <!-- New actions -->
+    <string name="action_hide_button">Hide Button</string>
+    <string name="action_flashlight">Flashlight</string>
+    <string name="action_wifi">Wi-Fi</string>
+    <string name="action_cellular">Mobile Data</string>
+    <string name="action_bluetooth">Bluetooth</string>
+    <string name="action_silent_mode">Silent Mode</string>
+    <string name="action_vibrate_mode">Vibrate Mode</string>
+    <string name="action_volume_panel">Volume Panel</string>
+    <string name="action_system_panel">System Panel</string>
+
+    <!-- Volume panel -->
+    <string name="title_volume_panel">Volume</string>
+    <string name="label_volume_media">Media</string>
+    <string name="label_volume_ring">Ringtone</string>
+    <string name="label_volume_alarm">Alarm</string>
+    <string name="label_volume_notif">Notification</string>
+
+    <!-- System panel -->
+    <string name="title_system_panel">Quick Controls</string>
+    <string name="panel_wifi">Wi-Fi</string>
+    <string name="panel_data">Data</string>
+    <string name="panel_bt">Bluetooth</string>
+    <string name="panel_silent">Silent</string>
+    <string name="panel_vibrate">Vibrate</string>
+    <string name="panel_flash">Torch</string>
+    <string name="panel_vol_up">Vol +</string>
+    <string name="panel_vol_down">Vol −</string>
+    <string name="panel_settings">Settings</string>
+
     <!-- Gestures -->
     <string name="title_gestures">Button Gestures</string>
     <string name="label_single_tap">Single Tap</string>
