@@ -182,10 +182,6 @@ MIT License
 
 Copyright (c) 2026 João Couto
 Copyright (c) 2026 arfoxcode
-<<<<<<< HEAD
-=======
-
->>>>>>> a108b12646b914ee27910001cc19abf7ec9e0b40
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
