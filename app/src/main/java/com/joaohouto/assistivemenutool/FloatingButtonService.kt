@@ -46,6 +46,10 @@ class FloatingButtonService : Service() {
     private var isDragging = false
     private var menuOverlayView: View? = null
     private var favoritesOverlayView: View? = null
+    private var systemPanelView: View? = null
+    private var volumePanelView: View? = null
+    private var isFlashlightOn = false
+    private var isButtonHidden = false
 
     // ── Gesture tracking ─────────────────────────────────────────────────────
     private val gestureHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -89,9 +93,15 @@ class FloatingButtonService : Service() {
 
     override fun onDestroy() {
         isRunning = false
+        // Matikan senter jika masih nyala
+        if (isFlashlightOn) try { toggleFlashlight() } catch (_: Exception) {}
         settings.prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
-        dismissFavoritesImmediate()
-        dismissMenuImmediate()
+        // Cleanup semua overlay
+        listOf(systemPanelView, volumePanelView, favoritesOverlayView, menuOverlayView).forEach {
+            it?.let { v -> try { windowManager.removeView(v) } catch (_: Exception) {} }
+        }
+        systemPanelView = null; volumePanelView = null
+        favoritesOverlayView = null; menuOverlayView = null
         if (::floatingView.isInitialized) windowManager.removeView(floatingView)
         super.onDestroy()
     }
@@ -272,31 +282,7 @@ class FloatingButtonService : Service() {
     }
 
     private fun executeLongPressAction(action: MenuAction) {
-        when (action) {
-            MenuAction.FAVORITES  -> {
-                if (menuOverlayView != null) showFavorites()
-                else { showMenu(); showFavorites() }
-            }
-            MenuAction.VOLUME_UP   -> adjustVolume(AudioManager.ADJUST_RAISE)
-            MenuAction.VOLUME_DOWN -> adjustVolume(AudioManager.ADJUST_LOWER)
-            MenuAction.OPEN_APP    -> openApp()
-            MenuAction.SCREENSHOT  -> {
-                val handler = android.os.Handler(android.os.Looper.getMainLooper())
-                handler.postDelayed({
-                    floatingView.visibility = View.INVISIBLE
-                    handler.postDelayed({
-                        AssistiveMenuAccessibilityService.instance?.execute(action)
-                        handler.postDelayed({
-                            floatingView.visibility = View.VISIBLE
-                            floatingView.alpha = 0f
-                            floatingView.animate().alpha(settings.opacity)
-                                .setDuration(SCREENSHOT_RESTORE_MS).start()
-                        }, SCREENSHOT_RESTORE_MS)
-                    }, SCREENSHOT_CAPTURE_MS)
-                }, SCREENSHOT_HIDE_MS)
-            }
-            else -> AssistiveMenuAccessibilityService.instance?.execute(action)
-        }
+        executeAction(action)
     }
 
     private fun snapToEdge() {
@@ -516,45 +502,52 @@ class FloatingButtonService : Service() {
 
     private fun onSlotClick(slot: PopupSlot) {
         when (slot.type) {
-            PopupSlot.SlotType.ACTION -> {
-                when (slot.action) {
-                    MenuAction.FAVORITES  -> showFavorites()
-                    MenuAction.VOLUME_UP  -> { hideMenu(); adjustVolume(AudioManager.ADJUST_RAISE) }
-                    MenuAction.VOLUME_DOWN -> { hideMenu(); adjustVolume(AudioManager.ADJUST_LOWER) }
-                    MenuAction.OPEN_APP   -> { hideMenu(); openApp() }
-                    MenuAction.SCREENSHOT -> {
-                        // 1. Tutup menu
-                        hideMenu()
-                        val handler = android.os.Handler(android.os.Looper.getMainLooper())
-                        handler.postDelayed({
-                            // 2. Sembunyikan floating button — tidak ikut ke screenshot
-                            floatingView.visibility = View.INVISIBLE
-                            handler.postDelayed({
-                                // 3. Ambil screenshot
-                                AssistiveMenuAccessibilityService.instance?.execute(slot.action!!)
-                                // 4. Tampilkan kembali dengan fade in
-                                handler.postDelayed({
-                                    floatingView.visibility = View.VISIBLE
-                                    floatingView.alpha = 0f
-                                    floatingView.animate()
-                                        .alpha(settings.opacity)
-                                        .setDuration(SCREENSHOT_RESTORE_MS)
-                                        .start()
-                                }, SCREENSHOT_RESTORE_MS)
-                            }, SCREENSHOT_CAPTURE_MS)
-                        }, SCREENSHOT_HIDE_MS)
-                    }
-                    else -> slot.action?.let {
-                        hideMenu()
-                        AssistiveMenuAccessibilityService.instance?.execute(it)
-                    }
-                }
-            }
+            PopupSlot.SlotType.ACTION -> executeAction(slot.action ?: return)
             PopupSlot.SlotType.SHORTCUT -> {
                 hideMenu()
                 launchApp(slot.shortcut?.packageName)
             }
             else -> {}
+        }
+    }
+
+    private fun executeAction(action: MenuAction) {
+        when (action) {
+            MenuAction.FAVORITES     -> showFavorites()
+            MenuAction.SYSTEM_PANEL  -> { hideMenu(); showSystemPanel() }
+            MenuAction.VOLUME_PANEL  -> { hideMenu(); showVolumePanel() }
+            MenuAction.VOLUME_UP     -> { hideMenu(); adjustVolume(AudioManager.ADJUST_RAISE) }
+            MenuAction.VOLUME_DOWN   -> { hideMenu(); adjustVolume(AudioManager.ADJUST_LOWER) }
+            MenuAction.OPEN_APP      -> { hideMenu(); openApp() }
+            MenuAction.HIDE_BUTTON   -> { hideMenu(); toggleHideButton() }
+            MenuAction.FLASHLIGHT    -> { hideMenu(); toggleFlashlight() }
+            MenuAction.WIFI          -> { hideMenu(); openWifiPanel() }
+            MenuAction.CELLULAR      -> { hideMenu(); openCellularSettings() }
+            MenuAction.BLUETOOTH     -> { hideMenu(); openBluetoothPanel() }
+            MenuAction.SILENT_MODE   -> { hideMenu(); setSilentMode() }
+            MenuAction.VIBRATE_MODE  -> { hideMenu(); setVibrateMode() }
+            MenuAction.SCREENSHOT    -> {
+                hideMenu()
+                val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                handler.postDelayed({
+                    floatingView.visibility = View.INVISIBLE
+                    handler.postDelayed({
+                        AssistiveMenuAccessibilityService.instance?.execute(action)
+                        handler.postDelayed({
+                            floatingView.visibility = View.VISIBLE
+                            floatingView.alpha = 0f
+                            floatingView.animate()
+                                .alpha(settings.opacity)
+                                .setDuration(SCREENSHOT_RESTORE_MS)
+                                .start()
+                        }, SCREENSHOT_RESTORE_MS)
+                    }, SCREENSHOT_CAPTURE_MS)
+                }, SCREENSHOT_HIDE_MS)
+            }
+            else -> {
+                hideMenu()
+                AssistiveMenuAccessibilityService.instance?.execute(action)
+            }
         }
     }
 
@@ -773,6 +766,363 @@ class FloatingButtonService : Service() {
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
 
+    // ── New action helpers ────────────────────────────────────────────────────
+
+    /** Sembunyikan/tampilkan floating button. Tap lagi untuk restore. */
+    private fun toggleHideButton() {
+        isButtonHidden = !isButtonHidden
+        if (isButtonHidden) {
+            floatingView.animate().alpha(0f).setDuration(300).withEndAction {
+                floatingView.visibility = View.GONE
+                // Restore otomatis setelah 5 detik supaya tidak terkunci
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    if (isButtonHidden) {
+                        isButtonHidden = false
+                        floatingView.visibility = View.VISIBLE
+                        floatingView.animate().alpha(settings.opacity).setDuration(300).start()
+                    }
+                }, HIDE_RESTORE_MS)
+            }.start()
+        } else {
+            floatingView.visibility = View.VISIBLE
+            floatingView.animate().alpha(settings.opacity).setDuration(300).start()
+        }
+    }
+
+    /** Toggle senter on/off via CameraManager */
+    private fun toggleFlashlight() {
+        try {
+            val cm = getSystemService(android.hardware.camera2.CameraManager::class.java)
+            val cameraId = cm.cameraIdList.firstOrNull() ?: return
+            isFlashlightOn = !isFlashlightOn
+            cm.setTorchMode(cameraId, isFlashlightOn)
+        } catch (_: Exception) {}
+    }
+
+    /** Buka WiFi panel (Settings.Panel — bekerja di API 29+) */
+    private fun openWifiPanel() {
+        try {
+            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                Intent(android.provider.Settings.Panel.ACTION_WIFI)
+            } else {
+                Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+            }
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
+        } catch (_: Exception) {}
+    }
+
+    /** Buka pengaturan data seluler */
+    private fun openCellularSettings() {
+        try {
+            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                Intent(android.provider.Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
+            } else {
+                Intent(android.provider.Settings.ACTION_DATA_ROAMING_SETTINGS)
+            }
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
+        } catch (_: Exception) {}
+    }
+
+    /** Buka Bluetooth panel */
+    private fun openBluetoothPanel() {
+        try {
+            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                Intent(android.provider.Settings.Panel.ACTION_BLUETOOTH)
+            } else {
+                Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+            }
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
+        } catch (_: Exception) {}
+    }
+
+    /** Set mode senyap (DND / silent) */
+    private fun setSilentMode() {
+        try {
+            val audio = getSystemService(AUDIO_SERVICE) as AudioManager
+            val nm    = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+            if (nm.isNotificationPolicyAccessGranted) {
+                audio.ringerMode = AudioManager.RINGER_MODE_SILENT
+            } else {
+                // Minta akses DND jika belum granted
+                startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                    .apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK })
+            }
+        } catch (_: Exception) {}
+    }
+
+    /** Set mode getar */
+    private fun setVibrateMode() {
+        try {
+            val audio = getSystemService(AUDIO_SERVICE) as AudioManager
+            audio.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+            // Haptic feedback konfirmasi
+            val vibrator = getSystemService(android.os.Vibrator::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator?.vibrate(android.os.VibrationEffect.createOneShot(80,
+                    android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(80)
+            }
+        } catch (_: Exception) {}
+    }
+
+    // ── Volume Panel overlay ──────────────────────────────────────────────────
+
+    private fun showVolumePanel() {
+        if (volumePanelView != null) return
+        val panel = buildVolumePanelView()
+        val lp = WindowManager.LayoutParams(
+            MATCH_PARENT, MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        windowManager.addView(panel, lp)
+        volumePanelView = panel
+        panel.alpha = 0f; panel.scaleX = 0.9f; panel.scaleY = 0.9f
+        panel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(200)
+            .setInterpolator(DecelerateInterpolator()).start()
+    }
+
+    private fun hideVolumePanel() {
+        val panel = volumePanelView ?: return
+        panel.animate().alpha(0f).scaleX(0.9f).scaleY(0.9f).setDuration(150)
+            .withEndAction {
+                try { windowManager.removeView(panel) } catch (_: Exception) {}
+                volumePanelView = null
+            }.start()
+    }
+
+    private fun buildVolumePanelView(): FrameLayout {
+        val audio = getSystemService(AUDIO_SERVICE) as AudioManager
+        val overlay = FrameLayout(this)
+
+        val dim = View(this).apply {
+            setBackgroundColor(Color.argb(110, 0, 0, 0))
+            setOnClickListener { hideVolumePanel() }
+            layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+        }
+
+        val bg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(24).toFloat()
+            setColor(Color.argb(245, 22, 22, 26))
+        }
+
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background  = bg
+            elevation   = dpToPx(12).toFloat()
+            val p = dpToPx(20)
+            setPadding(p, p, p, p)
+            layoutParams = FrameLayout.LayoutParams(dpToPx(280), WRAP_CONTENT, Gravity.CENTER)
+        }
+
+        // Title
+        val title = TextView(this).apply {
+            text     = getString(R.string.title_volume_panel)
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+                .also { it.bottomMargin = dpToPx(16) }
+        }
+        panel.addView(title)
+
+        // Volume streams
+        val streams = listOf(
+            AudioManager.STREAM_MUSIC    to getString(R.string.label_volume_media),
+            AudioManager.STREAM_RING     to getString(R.string.label_volume_ring),
+            AudioManager.STREAM_ALARM    to getString(R.string.label_volume_alarm),
+            AudioManager.STREAM_NOTIFICATION to getString(R.string.label_volume_notif)
+        )
+
+        streams.forEach { (stream, label) ->
+            val max     = audio.getStreamMaxVolume(stream)
+            val current = audio.getStreamVolume(stream)
+
+            val rowLabel = TextView(this).apply {
+                text     = label
+                textSize = 12f
+                setTextColor(Color.argb(200, 255, 255, 255))
+                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+                    .also { it.topMargin = dpToPx(8) }
+            }
+
+            val seekBar = android.widget.SeekBar(this).apply {
+                this.max      = max
+                progress      = current
+                progressDrawable?.setColorFilter(Color.WHITE,
+                    android.graphics.PorterDuff.Mode.SRC_IN)
+                thumb?.setColorFilter(Color.WHITE,
+                    android.graphics.PorterDuff.Mode.SRC_IN)
+                layoutParams  = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+                    .also { it.topMargin = dpToPx(4); it.bottomMargin = dpToPx(4) }
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: android.widget.SeekBar?, p: Int, fromUser: Boolean) {
+                        if (fromUser) audio.setStreamVolume(stream, p, 0)
+                    }
+                    override fun onStartTrackingTouch(sb: android.widget.SeekBar?) {}
+                    override fun onStopTrackingTouch(sb: android.widget.SeekBar?) {}
+                })
+            }
+            panel.addView(rowLabel)
+            panel.addView(seekBar)
+        }
+
+        overlay.addView(dim)
+        overlay.addView(panel)
+        return overlay
+    }
+
+    // ── System Panel overlay (9 tile fixed) ───────────────────────────────────
+
+    private fun showSystemPanel() {
+        if (systemPanelView != null) return
+        val panel = buildSystemPanelView()
+        val lp = WindowManager.LayoutParams(
+            MATCH_PARENT, MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        windowManager.addView(panel, lp)
+        systemPanelView = panel
+        panel.alpha = 0f; panel.scaleX = 0.85f; panel.scaleY = 0.85f
+        panel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(200)
+            .setInterpolator(DecelerateInterpolator()).start()
+    }
+
+    private fun hideSystemPanel() {
+        val panel = systemPanelView ?: return
+        panel.animate().alpha(0f).scaleX(0.85f).scaleY(0.85f).setDuration(150)
+            .withEndAction {
+                try { windowManager.removeView(panel) } catch (_: Exception) {}
+                systemPanelView = null
+            }.start()
+    }
+
+    private fun buildSystemPanelView(): FrameLayout {
+        val audio = getSystemService(AUDIO_SERVICE) as AudioManager
+        val overlay = FrameLayout(this)
+
+        val dim = View(this).apply {
+            setBackgroundColor(Color.argb(110, 0, 0, 0))
+            setOnClickListener { hideSystemPanel() }
+            layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+        }
+
+        val bg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(28).toFloat()
+            setColor(Color.argb(245, 22, 22, 26))
+        }
+
+        val cellPx  = dpToPx(84)
+        val gapPx   = dpToPx(8)
+        val padPx   = dpToPx(14)
+        val cols    = 3
+        val totalPx = cellPx * cols + gapPx * (cols - 1)
+
+        val panel = FrameLayout(this).apply {
+            background = bg
+            elevation  = dpToPx(12).toFloat()
+            setPadding(padPx, padPx, padPx, padPx)
+            layoutParams = FrameLayout.LayoutParams(
+                totalPx + padPx * 2, WRAP_CONTENT, Gravity.CENTER
+            )
+        }
+
+        // 9 tile fixed
+        data class SysTile(val iconRes: Int, val label: String, val action: () -> Unit)
+        val tiles = listOf(
+            SysTile(R.drawable.ic_wifi,         getString(R.string.panel_wifi))    { hideSystemPanel(); openWifiPanel() },
+            SysTile(R.drawable.ic_cellular,     getString(R.string.panel_data))    { hideSystemPanel(); openCellularSettings() },
+            SysTile(R.drawable.ic_bluetooth,    getString(R.string.panel_bt))      { hideSystemPanel(); openBluetoothPanel() },
+            SysTile(R.drawable.ic_silent,       getString(R.string.panel_silent))  { hideSystemPanel(); setSilentMode() },
+            SysTile(R.drawable.ic_vibrate,      getString(R.string.panel_vibrate)) { hideSystemPanel(); setVibrateMode() },
+            SysTile(R.drawable.ic_flashlight,   getString(R.string.panel_flash))   { toggleFlashlight() },
+            SysTile(R.drawable.ic_volume_up,    getString(R.string.panel_vol_up))  { hideSystemPanel(); adjustVolume(AudioManager.ADJUST_RAISE) },
+            SysTile(R.drawable.ic_volume_down,  getString(R.string.panel_vol_down)){ hideSystemPanel(); adjustVolume(AudioManager.ADJUST_LOWER) },
+            SysTile(R.drawable.ic_open_app,     getString(R.string.panel_settings)){ hideSystemPanel(); openApp() }
+        )
+
+        val grid = android.widget.RelativeLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(totalPx, cellPx * 3 + gapPx * 2)
+        }
+
+        tiles.forEachIndexed { idx, tile ->
+            val row = idx / cols
+            val col = idx % cols
+
+            val iconContBg = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(12).toFloat()
+                setColor(Color.argb(70, 255, 255, 255))
+            }
+            val tileBg = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(18).toFloat()
+                setColor(Color.argb(80, 255, 255, 255))
+            }
+
+            val iconSize = (cellPx * 0.46f).toInt()
+            val iconPad  = (cellPx * 0.13f).toInt()
+
+            val iconView = ImageView(this).apply {
+                setImageResource(tile.iconRes)
+                setColorFilter(Color.WHITE)
+                scaleType  = ImageView.ScaleType.CENTER_INSIDE
+                background = iconContBg
+                setPadding(iconPad, iconPad, iconPad, iconPad)
+                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+                    .also { it.gravity = Gravity.CENTER_HORIZONTAL }
+            }
+            val labelView = TextView(this).apply {
+                text     = tile.label
+                textSize = 10f
+                setTextColor(Color.WHITE)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                gravity  = Gravity.CENTER
+                maxLines = 1
+                layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+                    .also { it.gravity = Gravity.CENTER_HORIZONTAL; it.topMargin = dpToPx(5) }
+            }
+
+            val tileView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity     = Gravity.CENTER
+                background  = tileBg
+                addView(iconView)
+                addView(labelView)
+                setOnClickListener {
+                    animate().scaleX(0.88f).scaleY(0.88f).setDuration(70).withEndAction {
+                        animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                    }.start()
+                    tile.action()
+                }
+            }
+
+            val lp = android.widget.RelativeLayout.LayoutParams(
+                cellPx - dpToPx(4), cellPx - dpToPx(4)
+            ).apply {
+                leftMargin = col * (cellPx + gapPx) + dpToPx(2)
+                topMargin  = row * (cellPx + gapPx) + dpToPx(2)
+            }
+            tileView.layoutParams = lp
+            grid.addView(tileView)
+        }
+
+        panel.addView(grid)
+        overlay.addView(dim)
+        overlay.addView(panel)
+        return overlay
+    }
+
     // ── Notification ─────────────────────────────────────────────────────────
 
     private fun createNotificationChannel() {
@@ -821,5 +1171,6 @@ class FloatingButtonService : Service() {
         private const val LONG_PRESS_MS         = 500L   // durasi tahan untuk long press
         private const val DOUBLE_TAP_MS         = 280L   // jendela waktu double tap
         private val SINGLE_TAP_TOKEN            = Any()  // token untuk cancel pending single tap
+        private const val HIDE_RESTORE_MS       = 5000L  // auto restore hide button setelah 5 detik
     }
 }
