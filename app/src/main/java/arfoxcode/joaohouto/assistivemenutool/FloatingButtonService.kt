@@ -1,6 +1,10 @@
 package arfoxcode.joaohouto.assistivemenutool
 
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.view.animation.OvershootInterpolator
+import android.content.res.Configuration
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -317,22 +321,80 @@ class FloatingButtonService : Service() {
             PixelFormat.TRANSLUCENT
         ))
         menuOverlayView = overlay
-        val frame = overlay as FrameLayout
-        frame.getChildAt(0).also { it.alpha = 0f; it.animate().alpha(1f).setDuration(MENU_SHOW_MS).start() }
-        frame.getChildAt(1).also {
-            it.scaleX = 0.75f; it.scaleY = 0.75f; it.alpha = 0f
-            it.animate().scaleX(1f).scaleY(1f).alpha(1f)
-                .setDuration(MENU_SHOW_MS).setInterpolator(DecelerateInterpolator()).start()
+
+        val frame   = overlay as FrameLayout
+        val dimView = frame.getChildAt(0)
+        val panel   = frame.getChildAt(1)
+
+        // Hitung pivot dari posisi button di layar
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        val btnSize = dpToPx(settings.buttonSizeDp)
+        val btnCX   = params.x + btnSize / 2f
+        val btnCY   = params.y + btnSize / 2f
+
+        // Panel akan di-layout di CENTER — pivot relatif terhadap panel
+        panel.post {
+            val panelW = panel.width.toFloat()
+            val panelH = panel.height.toFloat()
+            val panelL = (screenW - panelW) / 2f
+            val panelT = (screenH - panelH) / 2f
+
+            // Pivot point = posisi button relatif terhadap panel
+            panel.pivotX = (btnCX - panelL).coerceIn(0f, panelW)
+            panel.pivotY = (btnCY - panelT).coerceIn(0f, panelH)
+        }
+
+        // Dim fade in
+        dimView.alpha = 0f
+        dimView.animate().alpha(1f).setDuration(MENU_SHOW_MS).start()
+
+        // Panel: scale dari 0 dengan spring overshoot
+        panel.scaleX = 0f
+        panel.scaleY = 0f
+        panel.alpha  = 0f
+        val scaleX = ObjectAnimator.ofFloat(panel, "scaleX", 0f, 1f).apply {
+            duration     = MENU_SHOW_MS + 60
+            interpolator = OvershootInterpolator(1.8f)
+        }
+        val scaleY = ObjectAnimator.ofFloat(panel, "scaleY", 0f, 1f).apply {
+            duration     = MENU_SHOW_MS + 60
+            interpolator = OvershootInterpolator(1.8f)
+        }
+        val fadeIn = ObjectAnimator.ofFloat(panel, "alpha", 0f, 1f).apply {
+            duration = 120
+        }
+        AnimatorSet().apply {
+            playTogether(scaleX, scaleY, fadeIn)
+            start()
         }
     }
 
     private fun hideMenu() {
         val overlay = menuOverlayView ?: return
         dismissFavoritesImmediate()
-        val frame = overlay as FrameLayout
-        frame.getChildAt(1).animate()
-            .scaleX(0.75f).scaleY(0.75f).alpha(0f).setDuration(MENU_HIDE_MS).start()
-        frame.getChildAt(0).animate().alpha(0f).setDuration(MENU_HIDE_MS)
+        val frame   = overlay as FrameLayout
+        val dimView = frame.getChildAt(0)
+        val panel   = frame.getChildAt(1)
+
+        // Panel: scale kembali ke 0 dari pivot yang sama
+        val scaleX = ObjectAnimator.ofFloat(panel, "scaleX", panel.scaleX, 0f).apply {
+            duration     = MENU_HIDE_MS
+            interpolator = DecelerateInterpolator()
+        }
+        val scaleY = ObjectAnimator.ofFloat(panel, "scaleY", panel.scaleY, 0f).apply {
+            duration     = MENU_HIDE_MS
+            interpolator = DecelerateInterpolator()
+        }
+        val fadeOut = ObjectAnimator.ofFloat(panel, "alpha", panel.alpha, 0f).apply {
+            duration = MENU_HIDE_MS
+        }
+        AnimatorSet().apply {
+            playTogether(scaleX, scaleY, fadeOut)
+            start()
+        }
+
+        dimView.animate().alpha(0f).setDuration(MENU_HIDE_MS)
             .withEndAction {
                 try { windowManager.removeView(overlay) } catch (_: Exception) {}
                 menuOverlayView = null
@@ -361,17 +423,60 @@ class FloatingButtonService : Service() {
         return overlay
     }
 
+    // ── Tema warna ────────────────────────────────────────────────────────────
+
+    private fun resolveTheme(): MenuTheme {
+        val isDark = when (settings.menuTheme) {
+            SettingsRepository.THEME_DARK   -> true
+            SettingsRepository.THEME_LIGHT  -> false
+            SettingsRepository.THEME_CUSTOM -> true  // custom pakai warna user, teks menyesuaikan
+            else -> { // THEME_SYSTEM
+                val mode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                mode == Configuration.UI_MODE_NIGHT_YES
+            }
+        }
+        return when (settings.menuTheme) {
+            SettingsRepository.THEME_CUSTOM -> MenuTheme(
+                panelBg      = settings.menuCustomColor,
+                tileBg       = Color.argb(60, 255, 255, 255),
+                tileContBg   = Color.argb(50, 255, 255, 255),
+                textColor    = Color.WHITE,
+                labelColor   = Color.argb(200, 255, 255, 255),
+                isDark       = true
+            )
+            else -> if (isDark) MenuTheme(
+                panelBg    = Color.argb(245, 22, 22, 26),
+                tileBg     = Color.argb(80, 255, 255, 255),
+                tileContBg = Color.argb(60, 255, 255, 255),
+                textColor  = Color.WHITE,
+                labelColor = Color.argb(200, 255, 255, 255),
+                isDark     = true
+            ) else MenuTheme(
+                panelBg    = Color.argb(245, 242, 242, 247),
+                tileBg     = Color.argb(80, 0, 0, 0),
+                tileContBg = Color.argb(50, 0, 0, 0),
+                textColor  = Color.argb(230, 20, 20, 20),
+                labelColor = Color.argb(160, 20, 20, 20),
+                isDark     = false
+            )
+        }
+    }
+
+    data class MenuTheme(
+        val panelBg: Int, val tileBg: Int, val tileContBg: Int,
+        val textColor: Int, val labelColor: Int, val isDark: Boolean
+    )
+
     // ── Menu panel — modern grid, slot kosong tidak ditampilkan ─────────────
 
     private fun buildMenuPanel(): View {
-        // Hanya slot yang terisi
         val slots = settings.popupSlots.filter { !it.isEmpty }
+        val theme = resolveTheme()
 
-        // Panel background: dark glass
         val bg = GradientDrawable().apply {
             shape        = GradientDrawable.RECTANGLE
             cornerRadius = dpToPx(28).toFloat()
-            setColor(Color.argb(245, 22, 22, 26))
+            setColor(theme.panelBg)
         }
 
         val pad = dpToPx(14)
@@ -398,24 +503,19 @@ class FloatingButtonService : Service() {
         val cols    = 3
         val rows    = 3
         val totalPx = cellPx * cols + gapPx * (cols - 1)
+        val theme   = resolveTheme()
 
         val grid = android.widget.RelativeLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(totalPx, totalPx)
         }
 
-        // Posisi tile ditentukan oleh slotIndex — bukan sequential scan
-        // slotIndex 0..8 → row = idx/3, col = idx%3
         for (slot in slots) {
             val idx  = slot.slotIndex.coerceIn(0, 8)
             val row  = idx / cols
             val col  = idx % cols
-
-            // Span dibatasi supaya tidak keluar batas grid dari posisi ini
             val span = slot.tileSize.coerceIn(1, minOf(3, cols - col, rows - row))
-
             val tilePx   = cellPx * span + gapPx * (span - 1)
-            val tileView = buildTileView(slot, tilePx)
-
+            val tileView = buildTileView(slot, tilePx, theme)
             val lp = android.widget.RelativeLayout.LayoutParams(tilePx, tilePx).apply {
                 leftMargin = col * (cellPx + gapPx)
                 topMargin  = row * (cellPx + gapPx)
@@ -426,25 +526,23 @@ class FloatingButtonService : Service() {
         return grid
     }
 
-    private fun buildTileView(slot: PopupSlot, sizePx: Int): View {
+    private fun buildTileView(slot: PopupSlot, sizePx: Int, theme: MenuTheme): View {
         val isLarge  = sizePx > dpToPx(MENU_ITEM_SIZE_DP)
         val iconSize = (sizePx * 0.46f).toInt()
         val iconPad  = (sizePx * 0.13f).toInt()
         val corner   = dpToPx(18).toFloat()
         val margin   = dpToPx(3)
 
-        // Tile background: frosted dark surface
         val tileBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = corner
-            setColor(Color.argb(80, 255, 255, 255))
+            setColor(theme.tileBg)
         }
 
-        // Icon container: lebih besar, rounded square bukan circle
         val iconContainerBg = GradientDrawable().apply {
             shape        = GradientDrawable.RECTANGLE
             cornerRadius = dpToPx(12).toFloat()
-            setColor(Color.argb(60, 255, 255, 255))
+            setColor(theme.tileContBg)
         }
 
         val icon = ImageView(this).apply {
@@ -474,10 +572,9 @@ class FloatingButtonService : Service() {
         val label = TextView(this).apply {
             text      = labelText
             textSize  = if (isLarge) 13f else 11f
-            setTextColor(Color.WHITE)
+            setTextColor(theme.textColor)
             gravity   = Gravity.CENTER
             maxLines  = 1
-            // Sedikit bold supaya terbaca di atas background gelap
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
                 .also { it.gravity = Gravity.CENTER_HORIZONTAL; it.topMargin = dpToPx(6) }

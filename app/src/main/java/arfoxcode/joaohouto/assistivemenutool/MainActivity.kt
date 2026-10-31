@@ -223,6 +223,13 @@ private fun MainScreen(
                 Spacer(Modifier.height(24.dp))
             }
 
+            // ── Menu theme ─────────────────────────────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_menu_theme))
+                MenuThemeSection(settings)
+                Spacer(Modifier.height(24.dp))
+            }
+
             // ── Button size & opacity ──────────────────────────────────────
             item {
                 SectionLabel(stringResource(R.string.title_settings))
@@ -423,6 +430,167 @@ private fun ModernPermissionRow(label: String, granted: Boolean, onRequest: () -
                     modifier         = Modifier.height(34.dp)
                 ) {
                     Text(stringResource(R.string.action_activate), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Menu Theme Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun MenuThemeSection(settings: SettingsRepository) {
+    var theme       by remember { mutableStateOf(settings.menuTheme) }
+    var customColor by remember { mutableStateOf(Color(settings.menuCustomColor)) }
+    var showPicker  by remember { mutableStateOf(false) }
+
+    if (showPicker) {
+        ColorPickerDialog(
+            initial   = customColor,
+            onDismiss = { showPicker = false },
+            onConfirm = { picked ->
+                customColor = picked
+                settings.menuCustomColor = picked.toArgb()
+                showPicker = false
+            }
+        )
+    }
+
+    ModernCard {
+        // Preview mini menu
+        MenuThemePreview(theme = theme, customColor = customColor)
+        Spacer(Modifier.height(20.dp))
+        ModernDivider()
+        Spacer(Modifier.height(16.dp))
+
+        // 4 pilihan tema
+        val themes = listOf(
+            SettingsRepository.THEME_SYSTEM to stringResource(R.string.theme_system),
+            SettingsRepository.THEME_DARK   to stringResource(R.string.theme_dark),
+            SettingsRepository.THEME_LIGHT  to stringResource(R.string.theme_light),
+            SettingsRepository.THEME_CUSTOM to stringResource(R.string.theme_custom)
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            themes.forEach { (value, label) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            theme = value
+                            settings.menuTheme = value
+                        }
+                        .padding(horizontal = 4.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Color dot preview
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    when (value) {
+                                        SettingsRepository.THEME_DARK   -> Color(0xFF16161A)
+                                        SettingsRepository.THEME_LIGHT  -> Color(0xFFF2F2F7)
+                                        SettingsRepository.THEME_CUSTOM -> customColor
+                                        else -> MaterialTheme.colorScheme.primaryContainer
+                                    }
+                                )
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                    RoundedCornerShape(8.dp))
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Text(
+                            text       = label,
+                            style      = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    RadioButton(
+                        selected = theme == value,
+                        onClick  = { theme = value; settings.menuTheme = value }
+                    )
+                }
+
+                // Custom color picker — muncul hanya saat custom dipilih
+                if (value == SettingsRepository.THEME_CUSTOM) {
+                    AnimatedVisibility(
+                        visible = theme == SettingsRepository.THEME_CUSTOM,
+                        enter   = fadeIn() + expandVertically(),
+                        exit    = fadeOut() + shrinkVertically()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 42.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ColorChip(
+                                label   = stringResource(R.string.label_menu_bg_color),
+                                color   = customColor,
+                                onClick = { showPicker = true }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuThemePreview(theme: String, customColor: Color) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+    val panelColor = when (theme) {
+        SettingsRepository.THEME_DARK   -> Color(0xFF16161A)
+        SettingsRepository.THEME_LIGHT  -> Color(0xFFF2F2F7)
+        SettingsRepository.THEME_CUSTOM -> customColor
+        else -> if (isDarkTheme) Color(0xFF16161A) else Color(0xFFF2F2F7)
+    }
+    val isDark = when (theme) {
+        SettingsRepository.THEME_LIGHT  -> false
+        SettingsRepository.THEME_CUSTOM -> false
+        else -> true
+    }
+    val tileColor   = if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.06f)
+    val textColor   = if (isDark) Color.White else Color(0xFF141414)
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .width(200.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(panelColor)
+                .padding(12.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(2) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        repeat(3) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(tileColor),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(tileColor.copy(alpha = if (isDark) 0.4f else 0.15f))
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

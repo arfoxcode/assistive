@@ -57,6 +57,18 @@ class SettingsRepository(context: Context) {
         get() = prefs.getInt(KEY_BORDER_WIDTH, DEFAULT_BORDER_WIDTH_DP)
         set(value) = prefs.edit().putInt(KEY_BORDER_WIDTH, value).apply()
 
+    // ── Menu theme ───────────────────────────────────────────────────────────
+
+    /** Tema menu: "dark" | "light" | "system" | "custom" */
+    var menuTheme: String
+        get() = prefs.getString(KEY_MENU_THEME, THEME_SYSTEM) ?: THEME_SYSTEM
+        set(value) = prefs.edit().putString(KEY_MENU_THEME, value).apply()
+
+    /** Warna background custom panel */
+    var menuCustomColor: Int
+        get() = prefs.getInt(KEY_MENU_CUSTOM_COLOR, Color.argb(245, 30, 30, 35))
+        set(value) = prefs.edit().putInt(KEY_MENU_CUSTOM_COLOR, value).apply()
+
     // ── Gesture settings ─────────────────────────────────────────────────────
 
     /** Action yang dijalankan saat long press pada floating button */
@@ -121,6 +133,13 @@ class SettingsRepository(context: Context) {
         const val KEY_POPUP_SLOTS       = "popup_slots"
         const val KEY_FAVORITE_SLOTS    = "favorite_slots"
         const val KEY_LONG_PRESS_ACTION = "long_press_action"
+        const val KEY_MENU_THEME = "menu_theme"
+        const val KEY_MENU_CUSTOM_COLOR = "menu_custom_color"
+
+        const val THEME_DARK   = "dark"
+        const val THEME_LIGHT  = "light"
+        const val THEME_SYSTEM = "system"
+        const val THEME_CUSTOM = "custom"
         val DEFAULT_LONG_PRESS_ACTION   = MenuAction.FAVORITES
 
         const val SHAPE_CIRCLE       = "circle"

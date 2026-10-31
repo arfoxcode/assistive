@@ -72,6 +72,14 @@
     <string name="tile_size_2x2">2×2</string>
     <string name="tile_size_3x3">3×3</string>
 
+    <!-- Menu Theme -->
+    <string name="title_menu_theme">Menu Theme</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_system">Follow System</string>
+    <string name="theme_custom">Custom</string>
+    <string name="label_menu_bg_color">Menu background color</string>
+
     <!-- New actions -->
     <string name="action_hide_button">Hide Button</string>
     <string name="action_flashlight">Flashlight</string>
