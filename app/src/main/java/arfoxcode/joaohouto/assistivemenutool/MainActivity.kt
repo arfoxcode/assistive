@@ -1323,27 +1323,94 @@ private fun AppPickerDialog(apps: List<AppInfo>, onDismiss: () -> Unit, onPick: 
 }
 
 @Composable
+@Composable
 private fun ActionPickerDialog(onDismiss: () -> Unit, onPick: (MenuAction) -> Unit) {
+    // Kelompokkan action berdasarkan kategori
+    val categories = listOf(
+        "Navigation" to listOf(
+            MenuAction.HOME, MenuAction.BACK, MenuAction.RECENTS,
+            MenuAction.LOCK, MenuAction.SCREENSHOT
+        ),
+        "Volume" to listOf(
+            MenuAction.VOLUME_UP, MenuAction.VOLUME_DOWN, MenuAction.VOLUME_PANEL
+        ),
+        "Sound & Mode" to listOf(
+            MenuAction.SILENT_MODE, MenuAction.VIBRATE_MODE
+        ),
+        "Connectivity" to listOf(
+            MenuAction.WIFI, MenuAction.CELLULAR, MenuAction.BLUETOOTH,
+            MenuAction.AIRPLANE_MODE
+        ),
+        "Tools" to listOf(
+            MenuAction.FLASHLIGHT, MenuAction.NOTIFICATIONS,
+            MenuAction.QUICK_SETTINGS, MenuAction.SYSTEM_PANEL
+        ),
+        "App" to listOf(
+            MenuAction.FAVORITES, MenuAction.OPEN_APP, MenuAction.HIDE_BUTTON
+        )
+    )
+
     Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(stringResource(R.string.slot_type_action),
-                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.padding(20.dp).heightIn(max = 560.dp)) {
+                Text(
+                    stringResource(R.string.slot_type_action),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Spacer(Modifier.height(12.dp))
-                MenuAction.entries.forEach { action ->
-                    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .clickable { onPick(action) }.padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center) {
-                            Icon(painter = painterResource(action.iconRes()), contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    categories.forEach { (categoryName, actions) ->
+                        item {
+                            Text(
+                                text  = categoryName.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(
+                                    start = 4.dp, top = 12.dp, bottom = 4.dp
+                                )
+                            )
                         }
-                        Spacer(Modifier.width(14.dp))
-                        Text(action.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
-                            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        items(actions) { action ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onPick(action) }
+                                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(action.iconRes()),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                                Spacer(Modifier.width(14.dp))
+                                Text(
+                                    text = action.name
+                                        .replace('_', ' ')
+                                        .lowercase()
+                                        .replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        item { ModernDivider(Modifier.padding(vertical = 4.dp)) }
                     }
                 }
             }
