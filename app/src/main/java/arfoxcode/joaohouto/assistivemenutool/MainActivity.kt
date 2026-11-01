@@ -1323,7 +1323,6 @@ private fun AppPickerDialog(apps: List<AppInfo>, onDismiss: () -> Unit, onPick: 
 }
 
 @Composable
-@Composable
 private fun ActionPickerDialog(onDismiss: () -> Unit, onPick: (MenuAction) -> Unit) {
     // Kelompokkan action berdasarkan kategori
     val categories = listOf(
