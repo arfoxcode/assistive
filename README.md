@@ -9,7 +9,7 @@ A floating accessibility button for Android. It displays a draggable button over
 </p>
 
 <p align="center">
-  <a href="https://f-droid.org/packages/com.joaohouto.assistivemenutool/" target="_blank">
+  <a href="https://f-droid.org/packages/com.arfoxcode.assistivemenutool/" target="_blank">
     <img src="https://img.shields.io/badge/F--Droid-Available-1976D2?style=for-the-badge&logo=f-droid&logoColor=white" alt="F-Droid" />
   </a>
   <a href="https://joaohouto.github.io/assistive/" target="_blank">
@@ -85,7 +85,7 @@ Path: **Settings → Accessibility → Assistive Menu Tool → Enable**
 ## Architecture
 
 ```text
-app/src/main/java/com/joaohouto/assistivemenutool/
+app/src/main/java/com/arfoxcode/assistivemenutool/
 ├── MainActivity.kt
 ├── FloatingButtonService.kt
 ├── AssistiveMenuAccessibilityService.kt

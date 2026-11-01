@@ -44,7 +44,7 @@ android {
         applicationId = "arfoxcode.joaohouto.assistivemenutool"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
+        versionCode = 6
         versionName = "1.81"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

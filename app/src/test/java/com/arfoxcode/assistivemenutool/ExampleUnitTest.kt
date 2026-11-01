@@ -1,4 +1,4 @@
-package com.joaohouto.assistivemenutool
+package com.arfoxcode.assistivemenutool
 
 import org.junit.Test
 
