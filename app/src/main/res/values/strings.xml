@@ -72,6 +72,12 @@
     <string name="tile_size_2x2">2×2</string>
     <string name="tile_size_3x3">3×3</string>
 
+    <!-- Battery optimization -->
+    <string name="permission_battery">Battery optimization</string>
+    <string name="permission_battery_desc">Prevent system from stopping the service</string>
+    <string name="battery_optimized">Optimized (may stop service)</string>
+    <string name="battery_not_optimized">Not optimized (recommended)</string>
+
     <!-- Menu Theme -->
     <string name="title_menu_theme">Menu Theme</string>
     <string name="theme_dark">Dark</string>
