@@ -2,6 +2,8 @@ package arfoxcode.joaohouto.assistivemenutool
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.PowerManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
@@ -76,15 +78,36 @@ class MainActivity : ComponentActivity() {
                     openAccessibilitySettings = {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     },
-                    isServiceRunning          = { FloatingButtonService.isRunning },
-                    toggleService             = {
+                    isServiceRunning              = { FloatingButtonService.isRunning },
+                    toggleService                 = {
                         val svc = Intent(this, FloatingButtonService::class.java)
                         if (FloatingButtonService.isRunning) stopService(svc)
                         else startForegroundService(svc)
                     },
-                    getInstalledApps          = { getInstalledApps() }
+                    getInstalledApps              = { getInstalledApps() },
+                    isBatteryOptimized            = { isBatteryOptimized() },
+                    requestIgnoreBatteryOptimization = { requestIgnoreBatteryOptimization() }
                 )
             }
+        }
+    }
+
+    fun isBatteryOptimized(): Boolean {
+        val pm = getSystemService(PowerManager::class.java)
+        return !pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    fun requestIgnoreBatteryOptimization() {
+        try {
+            startActivity(Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:$packageName")
+            ))
+        } catch (_: Exception) {
+            // Fallback ke halaman battery settings
+            startActivity(Intent(
+                android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+            ))
         }
     }
 
@@ -141,17 +164,21 @@ private fun MainScreen(
     openAccessibilitySettings: () -> Unit,
     isServiceRunning: () -> Boolean,
     toggleService: () -> Unit,
-    getInstalledApps: () -> List<AppInfo>
+    getInstalledApps: () -> List<AppInfo>,
+    isBatteryOptimized: () -> Boolean,
+    requestIgnoreBatteryOptimization: () -> Unit
 ) {
     var overlayGranted       by remember { mutableStateOf(hasOverlayPermission()) }
     var accessibilityEnabled by remember { mutableStateOf(hasAccessibilityService()) }
     var serviceRunning       by remember { mutableStateOf(isServiceRunning()) }
+    var batteryOptimized     by remember { mutableStateOf(isBatteryOptimized()) }
 
     LaunchedEffect(Unit) {
         while (true) {
             overlayGranted       = hasOverlayPermission()
             accessibilityEnabled = hasAccessibilityService()
             serviceRunning       = isServiceRunning()
+            batteryOptimized     = isBatteryOptimized()
             delay(500)
         }
     }
@@ -211,6 +238,13 @@ private fun MainScreen(
                         label   = stringResource(R.string.permission_accessibility),
                         granted = accessibilityEnabled,
                         onRequest = { showAccessibilityDisclosure = true }
+                    )
+                    // Battery optimization — tampil sebagai warning jika masih dioptimasi
+                    ModernPermissionRow(
+                        label     = stringResource(R.string.permission_battery),
+                        granted   = !batteryOptimized,
+                        isWarning = batteryOptimized,
+                        onRequest = requestIgnoreBatteryOptimization
                     )
                 }
                 Spacer(Modifier.height(24.dp))
@@ -396,40 +430,78 @@ private fun SectionLabel(title: String) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ModernPermissionRow(label: String, granted: Boolean, onRequest: () -> Unit) {
+private fun ModernPermissionRow(
+    label: String,
+    granted: Boolean,
+    onRequest: () -> Unit,
+    isWarning: Boolean = false
+) {
+    val bgColor = when {
+        granted   -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        isWarning -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+        else      -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+    }
+    val iconTint = when {
+        granted   -> MaterialTheme.colorScheme.primary
+        isWarning -> MaterialTheme.colorScheme.tertiary
+        else      -> MaterialTheme.colorScheme.error
+    }
+
     Surface(
-        shape           = RoundedCornerShape(16.dp),
-        color           = if (granted)
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-        else
-            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-        modifier        = Modifier.fillMaxWidth()
+        shape    = RoundedCornerShape(16.dp),
+        color    = bgColor,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier              = Modifier.padding(16.dp),
             verticalAlignment     = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
                 Icon(
                     painter           = painterResource(
                         if (granted) R.drawable.ic_check_circle else R.drawable.ic_circle_outline
                     ),
                     contentDescription = null,
                     modifier          = Modifier.size(22.dp),
-                    tint              = if (granted) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.error
+                    tint              = iconTint
                 )
                 Spacer(Modifier.width(12.dp))
-                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Column {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (isWarning && !granted) {
+                        Text(
+                            stringResource(R.string.battery_optimized),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    } else if (granted && isWarning) {
+                        Text(
+                            stringResource(R.string.battery_not_optimized),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
             if (!granted) {
+                Spacer(Modifier.width(8.dp))
                 FilledTonalButton(
-                    onClick          = onRequest,
-                    contentPadding   = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    modifier         = Modifier.height(34.dp)
+                    onClick        = onRequest,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    modifier       = Modifier.height(34.dp)
                 ) {
-                    Text(stringResource(R.string.action_activate), style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        stringResource(R.string.action_activate),
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
         }
