@@ -23,6 +23,10 @@
     <!-- Vibration -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Device Admin -->
+    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN"
+        tools:ignore="ProtectedPermissions" />
+
     <!-- Battery optimization — agar service tetap berjalan di background -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -75,6 +79,19 @@
         <receiver
             android:name=".ServiceRestartReceiver"
             android:exported="false" />
+
+        <!-- Device Admin — mencegah force stop dan uninstall -->
+        <receiver
+            android:name=".AssistiveDeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".FloatingButtonService"

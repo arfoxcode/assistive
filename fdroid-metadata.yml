@@ -12,9 +12,9 @@ Repo: https://github.com/joaohouto/assistive
 Binaries: https://github.com/joaohouto/assistive/releases/download/v%v/app-release.apk
 
 Builds:
-  - versionName: '2.0'
-    versionCode: 7
-    commit: v2.0
+  - versionName: '2.5'
+    versionCode: 8
+    commit: v2.5
     subdir: app
     gradle:
       - yes
@@ -23,5 +23,5 @@ AllowedAPKSigningKeys: 3c349ffe2c4eafcf08a2983f426c1d2ba31ebdcc86094717d431b35c8
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: '2.0'
-CurrentVersionCode: 7
+CurrentVersion: '2.5'
+CurrentVersionCode: 8

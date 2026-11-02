@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityEventTypes="typeNone"
+    android:accessibilityFlags="flagDefault"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:notificationTimeout="100"
+    android:notificationTimeout="0"
     android:description="@string/accessibility_service_description"
     android:isAccessibilityTool="true"
-    android:settingsActivity=".MainActivity" />
+    android:settingsActivity=".MainActivity"
+    android:canPerformGestures="false"
+    android:canRetrieveWindowContent="false"
+    android:canRequestFilterKeyEvents="false"
+    android:canRequestTouchExplorationMode="false"
+    android:canRequestEnhancedWebAccessibility="false" />

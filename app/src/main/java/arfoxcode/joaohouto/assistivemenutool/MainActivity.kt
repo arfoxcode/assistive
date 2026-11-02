@@ -89,11 +89,27 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     getInstalledApps              = { getInstalledApps() },
-                    isBatteryOptimized            = { isBatteryOptimized() },
-                    requestIgnoreBatteryOptimization = { requestIgnoreBatteryOptimization() }
+                    isBatteryOptimized               = { isBatteryOptimized() },
+                    requestIgnoreBatteryOptimization = { requestIgnoreBatteryOptimization() },
+                    isDeviceAdminActive              = { isDeviceAdminActive() },
+                    requestDeviceAdmin               = { requestDeviceAdmin() }
                 )
             }
         }
+    }
+
+    fun isDeviceAdminActive(): Boolean {
+        return AssistiveDeviceAdminReceiver.isAdminActive(this)
+    }
+
+    fun requestDeviceAdmin() {
+        val intent = Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN,
+                AssistiveDeviceAdminReceiver.getComponentName(this@MainActivity))
+            putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                getString(R.string.device_admin_description))
+        }
+        startActivity(intent)
     }
 
     fun isBatteryOptimized(): Boolean {
@@ -116,6 +132,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
+        // Cek dua cara:
+        // 1. Instance masih ada (service aktif di memory)
+        // 2. Setting sistem mengatakan service enabled
+        if (AssistiveMenuAccessibilityService.isEnabled) return true
         val enabled = Settings.Secure.getString(contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
         return enabled.contains(packageName, ignoreCase = true)
@@ -170,12 +190,15 @@ private fun MainScreen(
     toggleService: () -> Unit,
     getInstalledApps: () -> List<AppInfo>,
     isBatteryOptimized: () -> Boolean,
-    requestIgnoreBatteryOptimization: () -> Unit
+    requestIgnoreBatteryOptimization: () -> Unit,
+    isDeviceAdminActive: () -> Boolean,
+    requestDeviceAdmin: () -> Unit
 ) {
     var overlayGranted       by remember { mutableStateOf(hasOverlayPermission()) }
     var accessibilityEnabled by remember { mutableStateOf(hasAccessibilityService()) }
     var serviceRunning       by remember { mutableStateOf(isServiceRunning()) }
     var batteryOptimized     by remember { mutableStateOf(isBatteryOptimized()) }
+    var deviceAdminActive    by remember { mutableStateOf(isDeviceAdminActive()) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -183,6 +206,7 @@ private fun MainScreen(
             accessibilityEnabled = hasAccessibilityService()
             serviceRunning       = isServiceRunning()
             batteryOptimized     = isBatteryOptimized()
+            deviceAdminActive    = isDeviceAdminActive()
             delay(500)
         }
     }
@@ -249,6 +273,17 @@ private fun MainScreen(
                         granted   = !batteryOptimized,
                         isWarning = batteryOptimized,
                         onRequest = requestIgnoreBatteryOptimization
+                    )
+                    // Device Admin — opsional tapi sangat direkomendasikan
+                    ModernPermissionRow(
+                        label     = stringResource(R.string.permission_device_admin),
+                        granted   = deviceAdminActive,
+                        isWarning = !deviceAdminActive,
+                        onRequest = requestDeviceAdmin,
+                        subtitle  = if (deviceAdminActive)
+                            stringResource(R.string.device_admin_active)
+                        else
+                            stringResource(R.string.device_admin_inactive)
                     )
                 }
                 Spacer(Modifier.height(24.dp))
@@ -438,7 +473,8 @@ private fun ModernPermissionRow(
     label: String,
     granted: Boolean,
     onRequest: () -> Unit,
-    isWarning: Boolean = false
+    isWarning: Boolean = false,
+    subtitle: String? = null
 ) {
     val bgColor = when {
         granted   -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
@@ -480,7 +516,15 @@ private fun ModernPermissionRow(
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium
                     )
-                    if (isWarning && !granted) {
+                    // Subtitle eksplisit
+                    if (subtitle != null) {
+                        Text(
+                            subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (granted) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.tertiary
+                        )
+                    } else if (isWarning && !granted) {
                         Text(
                             stringResource(R.string.battery_optimized),
                             style = MaterialTheme.typography.labelSmall,

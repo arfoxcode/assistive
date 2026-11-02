@@ -37,7 +37,7 @@
     <string name="accessibility_disclosure_message">Assistive Menu Tool requires the AccessibilityService API exclusively to allow you to perform global system actions (such as Home, Back, Recent Apps, Lock Screen, Take Screenshot, and Notifications) via the floating button.\n\n• The app does NOT monitor your screen.\n• The app does NOT read or type information for you.\n• The app does NOT collect or share any personal or sensitive user data.</string>
     <string name="action_agree_and_continue">Agree and Continue</string>
     <string name="action_cancel">Cancel</string>
-    <string name="accessibility_service_description">Allows Assistive Menu Tool to perform actions like back, home, recents, and screen lock</string>
+    <string name="accessibility_service_description">Assistive Menu Tool uses accessibility only to perform system actions (Home, Back, Recents, Lock, Screenshot, Notifications). It does NOT read screen content, does NOT monitor any apps, and does NOT collect any data.</string>
 
     <!-- Button Appearance -->
     <string name="title_appearance">Button Appearance</string>
@@ -71,6 +71,16 @@
     <string name="tile_size_1x1">1×1</string>
     <string name="tile_size_2x2">2×2</string>
     <string name="tile_size_3x3">3×3</string>
+
+    <!-- Device Admin -->
+    <string name="permission_device_admin">Device Administrator</string>
+    <string name="device_admin_active">Active — app protected from force stop</string>
+    <string name="device_admin_inactive">Inactive — app can be force stopped</string>
+    <string name="device_admin_description">Assistive Menu Tool uses Device Administrator access to prevent the system from force stopping the service and to provide a backup lock screen function.\n\nThis does NOT allow the app to monitor your data or remotely control your device.</string>
+
+    <!-- Accessibility warning -->
+    <string name="accessibility_disconnected">Accessibility service disconnected</string>
+    <string name="accessibility_reconnect">Re-enable in Settings</string>
 
     <!-- Battery optimization -->
     <string name="permission_battery">Battery optimization</string>

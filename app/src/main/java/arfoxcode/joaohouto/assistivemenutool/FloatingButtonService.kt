@@ -708,6 +708,16 @@ class FloatingButtonService : Service() {
                     }, SCREENSHOT_CAPTURE_MS)
                 }, SCREENSHOT_HIDE_MS)
             }
+            MenuAction.LOCK -> {
+                hideMenu()
+                // Coba accessibility dulu, fallback ke DeviceAdmin
+                val executed = AssistiveMenuAccessibilityService.instance?.let {
+                    it.execute(action); true
+                } ?: false
+                if (!executed) {
+                    AssistiveDeviceAdminReceiver.lockScreen(this)
+                }
+            }
             else -> {
                 hideMenu()
                 AssistiveMenuAccessibilityService.instance?.execute(action)
@@ -1339,6 +1349,12 @@ class FloatingButtonService : Service() {
             private set
 
         const val ACTION_STOP = "arfoxcode.joaohouto.assistivemenutool.STOP"
+
+        // Dipanggil AssistiveMenuAccessibilityService saat terputus
+        fun notifyAccessibilityDisconnected() {
+            // Tidak ada yang perlu dilakukan — floating button tetap tampil
+            // Actions yang butuh accessibility akan gracefully fail
+        }
 
         private const val NOTIFICATION_ID     = 1001
         private const val CHANNEL_ID          = "assistive_menu_tool"
