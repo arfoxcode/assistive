@@ -80,9 +80,14 @@ class MainActivity : ComponentActivity() {
                     },
                     isServiceRunning              = { FloatingButtonService.isRunning },
                     toggleService                 = {
-                        val svc = Intent(this, FloatingButtonService::class.java)
-                        if (FloatingButtonService.isRunning) stopService(svc)
-                        else startForegroundService(svc)
+                        if (FloatingButtonService.isRunning) {
+                            // Kirim ACTION_STOP supaya service tahu ini user yang stop
+                            startService(Intent(this, FloatingButtonService::class.java).apply {
+                                action = FloatingButtonService.ACTION_STOP
+                            })
+                        } else {
+                            startForegroundService(Intent(this, FloatingButtonService::class.java))
+                        }
                     },
                     getInstalledApps              = { getInstalledApps() },
                     isBatteryOptimized            = { isBatteryOptimized() },

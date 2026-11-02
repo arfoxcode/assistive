@@ -54,6 +54,7 @@ class FloatingButtonService : Service() {
     private var volumePanelView: View? = null
     private var isFlashlightOn = false
     private var isButtonHidden = false
+    private var isUserStopped  = false
 
     // ── Gesture tracking ─────────────────────────────────────────────────────
     private val gestureHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -88,15 +89,28 @@ class FloatingButtonService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         rebuildButton()
+        startWatchdog()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) stopSelf()
+        when (intent?.action) {
+            ACTION_STOP    -> { isUserStopped = true; stopSelf(); return START_NOT_STICKY }
+            ACTION_RESTART -> { /* restart dipanggil dari watchdog */ }
+        }
+        // START_STICKY + START_REDELIVER_INTENT — Android restart service otomatis
+        // jika dibunuh sistem, dengan intent terakhir
         return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // App di-swipe dari recents — restart service via alarm
+        if (!isUserStopped) scheduleRestart()
     }
 
     override fun onDestroy() {
         isRunning = false
+        stopWatchdog()
         // Matikan senter jika masih nyala
         if (isFlashlightOn) try { toggleFlashlight() } catch (_: Exception) {}
         settings.prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
@@ -106,8 +120,60 @@ class FloatingButtonService : Service() {
         }
         systemPanelView = null; volumePanelView = null
         favoritesOverlayView = null; menuOverlayView = null
-        if (::floatingView.isInitialized) windowManager.removeView(floatingView)
+        if (::floatingView.isInitialized) {
+            try { windowManager.removeView(floatingView) } catch (_: Exception) {}
+        }
+        // Jadwalkan restart jika bukan dihentikan user
+        if (!isUserStopped) scheduleRestart()
         super.onDestroy()
+    }
+
+    // ── Watchdog — cek service masih hidup setiap 30 detik ──────────────────
+
+    private val watchdogHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val watchdogRunnable = object : Runnable {
+        override fun run() {
+            // Update notifikasi supaya sistem tahu service masih aktif
+            try {
+                val nm = getSystemService(android.app.NotificationManager::class.java)
+                nm.notify(NOTIFICATION_ID, buildNotification())
+            } catch (_: Exception) {}
+            watchdogHandler.postDelayed(this, WATCHDOG_INTERVAL_MS)
+        }
+    }
+
+    private fun startWatchdog() {
+        watchdogHandler.postDelayed(watchdogRunnable, WATCHDOG_INTERVAL_MS)
+    }
+
+    private fun stopWatchdog() {
+        watchdogHandler.removeCallbacks(watchdogRunnable)
+    }
+
+    // ── Schedule restart via AlarmManager ────────────────────────────────────
+
+    private fun scheduleRestart() {
+        try {
+            val am = getSystemService(android.app.AlarmManager::class.java)
+            val intent = Intent(this, ServiceRestartReceiver::class.java)
+            val pi = android.app.PendingIntent.getBroadcast(
+                this, RESTART_REQUEST_CODE, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val triggerAt = System.currentTimeMillis() + RESTART_DELAY_MS
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                if (am.canScheduleExactAlarms()) {
+                    am.setExactAndAllowWhileIdle(
+                        android.app.AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                } else {
+                    am.set(android.app.AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                }
+            } else {
+                am.setExactAndAllowWhileIdle(
+                    android.app.AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            }
+        } catch (_: Exception) {}
     }
 
     // ── Floating button ──────────────────────────────────────────────────────
@@ -1289,5 +1355,10 @@ class FloatingButtonService : Service() {
         private const val DOUBLE_TAP_MS         = 280L   // jendela waktu double tap
         private val SINGLE_TAP_TOKEN            = Any()  // token untuk cancel pending single tap
         private const val HIDE_RESTORE_MS       = 5000L  // auto restore hide button setelah 5 detik
+        private const val WATCHDOG_INTERVAL_MS  = 30_000L // watchdog ping setiap 30 detik
+        private const val RESTART_DELAY_MS      = 1_000L  // delay restart setelah service mati
+        private const val RESTART_REQUEST_CODE  = 9001
+
+        const val ACTION_RESTART = "arfoxcode.joaohouto.assistivemenutool.RESTART"
     }
 }
