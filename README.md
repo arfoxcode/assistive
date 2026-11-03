@@ -1,53 +1,87 @@
+<!-- SEO Meta Keywords (GitHub renders ini sebagai komentar, tapi crawler tetap baca) -->
+<!-- assistive touch android, floating button android, accessibility button android, assistive menu android apk, tombol bantu android, floating accessibility button, android assistive touch alternative, system actions floating button -->
+
 # Assistive Menu Tool
 
-A floating accessibility button for Android. It displays a draggable button over any screen that opens a menu of quick system actions when tapped, similar to accessibility features available on other mobile operating systems.
+**A powerful floating accessibility button for Android** — drag it anywhere on screen, tap to open a fully customizable menu of system actions. Inspired by the AssistiveTouch feature on iOS, built natively for Android.
+
+> Available on **F-Droid** · Open Source · No ads · No tracking · MIT License
+
+<p align="center">
+  <img src="docs/feature_graphic.jpg" width="100%" alt="Assistive Menu Tool - Floating Accessibility Button for Android" />
+</p>
+
+<p align="center">
+  <a href="https://f-droid.org/packages/arfoxcode.joaohouto.assistivemenutool/" target="_blank">
+    <img src="https://img.shields.io/badge/F--Droid-Available-1976D2?style=for-the-badge&logo=f-droid&logoColor=white" alt="Download on F-Droid" />
+  </a>
+  <a href="https://github.com/arfoxcode/assistive/releases/latest" target="_blank">
+    <img src="https://img.shields.io/github/v/release/arfoxcode/assistive?style=for-the-badge&label=Latest%20Release" alt="Latest Release" />
+  </a>
+  <a href="https://github.com/arfoxcode/assistive/blob/main/LICENSE.md" target="_blank">
+    <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License" />
+  </a>
+</p>
 
 ---
 
-<p align="center">
-  <img src="docs/feature_graphic.jpg" width="100%" alt="Assistive Menu Tool Banner" />
-</p>
+## What is Assistive Menu Tool?
 
-<p align="center">
-  <a href="https://f-droid.org/packages/com.arfoxcode.assistivemenutool/" target="_blank">
-    <img src="https://img.shields.io/badge/F--Droid-Available-1976D2?style=for-the-badge&logo=f-droid&logoColor=white" alt="F-Droid" />
-  </a>
-  <a href="https://joaohouto.github.io/assistive/" target="_blank">
-    <img src="https://img.shields.io/badge/Official%20Website-Visit-black?style=for-the-badge" alt="Official Website" />
-  </a>
-</p>
+Assistive Menu Tool is a free, open-source Android app that adds a **draggable floating button** over any screen. When tapped, it opens a quick-access menu of system actions — no hardware buttons needed.
+
+Perfect for:
+- Devices with broken or hard-to-reach hardware buttons
+- One-handed phone use
+- Accessibility needs
+- Power users who want faster system controls
 
 ---
 
 ## Features
 
-- **Floating Button** - Draggable across the screen.
-- **Automatic Edge Snapping** - Automatically snaps to the nearest screen edge when released.
-- **Expandable Menu** - Smooth scale and fade animations.
-- **10 Available Actions** - Configurable by the user.
+### Core
+- 🔘 **Draggable floating button** — place it anywhere on screen
+- 🧲 **Auto edge snap** — snaps to nearest edge when released
+- ✨ **Smooth animations** — expand from button position with spring effect
+- 🎨 **Full customization** — shape, color, border, size, opacity
 
-| Action | Description |
+### Menu Actions (21 actions available)
+| Category | Actions |
 |---|---|
-| Home | Returns to the home screen. |
-| Back | Performs the Back action. |
-| Recent Apps | Opens the recent apps screen. |
-| Lock Screen | Locks the screen (Android 9+). |
-| Volume Up | Increases the volume. |
-| Volume Down | Decreases the volume. |
-| Screenshot | Captures the screen (Android 9+). |
-| Notifications | Opens the notification shade. |
-| Quick Settings | Opens the system quick settings panel. |
-| Settings | Opens the app's settings screen. |
+| Navigation | Home, Back, Recents, Lock Screen, Screenshot |
+| Volume | Volume Up, Volume Down, Volume Panel (full mixer) |
+| Sound & Mode | Silent Mode, Vibrate Mode |
+| Connectivity | Wi-Fi, Mobile Data, Bluetooth, Airplane Mode |
+| Tools | Flashlight, Notifications, Quick Settings, System Panel |
+| App | Favorites, Open Settings, Hide Button |
+
+### Gestures
+| Gesture | Action |
+|---|---|
+| Single Tap | Open menu |
+| Double Tap | Lock screen |
+| Long Press | Configurable (Favorites, Flashlight, etc.) |
 
 ### Customization
+- **Button appearance** — circle or rounded rectangle shape, custom colors with HSV picker, border on/off
+- **Button size** — free slider from 32dp to 96dp + quick presets (S/M/L/XL)
+- **Menu theme** — Dark, Light, Follow System, or Custom color
+- **Popup slots** — 9 configurable slots, each can be a system action or app shortcut
+- **Favorite Apps** — 9 slots for quick app launch, with tile sizes 1×1, 2×2, 3×3
+- **System Panel** — 9 fixed quick-control tiles (Wi-Fi, Data, BT, Airplane, Silent, Vibrate, Torch, Vol+/−)
 
-- **Button Opacity** - Adjust the floating button's opacity from 30% to 100%.
-- **Button Size** - Choose between Small, Medium, and Large.
-- **Menu Actions** - Select which actions appear in the menu.
-- **Custom App Logo** - Customize the app's logo to personalize its appearance.
-- **Favorite Apps** - Add favorite apps for quick access directly from the assistive menu.
+### Reliability (v2.0+)
+- 🛡️ **Device Administrator** support — prevents force stop
+- 🔋 **Battery optimization exclusion** — prevents system from killing service
+- 🔄 **Auto-restart** — restarts after system kill via AlarmManager
+- 🚀 **Boot receiver** — auto-starts after device reboot
+- 👁️ **Watchdog** — keeps service alive in background
 
-Settings are stored persistently using `SharedPreferences`.
+---
+
+## Screenshots
+
+> _Coming soon — contributions welcome_
 
 ---
 
@@ -55,149 +89,107 @@ Settings are stored persistently using `SharedPreferences`.
 
 | Item | Value |
 |---|---|
-| Minimum Android Version | Android 7.0 (API 24) |
-| Target Android Version | Android 15 (API 36) |
+| Minimum Android | 7.0 (API 24) |
+| Target Android | 15 (API 36) |
 | Kotlin | 2.2.10 |
-| UI Framework | Jetpack Compose + Material 3 |
+| UI | Jetpack Compose + Material 3 |
 
 ---
 
 ## Required Permissions
 
-The app requires two special permissions that must be granted manually.
+| Permission | Purpose |
+|---|---|
+| `SYSTEM_ALERT_WINDOW` | Show floating button over other apps |
+| `BIND_ACCESSIBILITY_SERVICE` | Perform system actions (Home, Back, Lock, etc.) |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Keep service alive in background |
+| `BIND_DEVICE_ADMIN` | Prevent force stop (optional but recommended) |
+| `CAMERA` | Flashlight toggle |
+| `BLUETOOTH_CONNECT` | Bluetooth panel (Android 13+) |
+| `ACCESS_NOTIFICATION_POLICY` | Silent / DND mode |
+| `RECEIVE_BOOT_COMPLETED` | Auto-start after reboot |
+| `SCHEDULE_EXACT_ALARM` | Service restart via AlarmManager |
 
-### 1. Display Over Other Apps (`SYSTEM_ALERT_WINDOW`)
-
-Allows the floating button to appear over other applications.
-
-Path: **Settings → Apps → Assistive Menu Tool → Display over other apps**
-
-### 2. Accessibility Service (`BIND_ACCESSIBILITY_SERVICE`)
-
-Allows the app to perform global system actions such as Home, Back, Recent Apps, Lock Screen, and Screenshot.
-
-Path: **Settings → Accessibility → Assistive Menu Tool → Enable**
-
-> The app guides users through both permission settings from the main screen.
+> **Privacy note:** The accessibility service is configured with `canRetrieveWindowContent="false"` and `eventTypes="typeWindowStateChanged"` only. It does **not** read screen content, monitor apps, or collect any data. Compatible with most banking apps.
 
 ---
 
 ## Architecture
 
-```text
-app/src/main/java/com/arfoxcode/assistivemenutool/
-├── MainActivity.kt
-├── FloatingButtonService.kt
-├── AssistiveMenuAccessibilityService.kt
-├── MenuAction.kt
-├── SettingsRepository.kt
-└── ui/theme/
 ```
-
-### Main Components
-
-**`FloatingButtonService`**
-
-- Adds the floating button to `WindowManager` using `TYPE_APPLICATION_OVERLAY`.
-- Handles dragging, releasing, and animated snapping to the nearest screen edge.
-- Opens and closes the menu with scale animations.
-- Listens for settings changes in real time using `OnSharedPreferenceChangeListener`.
-- Handles volume actions through `AudioManager` and screenshot actions with a 400 ms delay.
-
-**`AssistiveMenuAccessibilityService`**
-
-- Uses `performGlobalAction()` to execute system actions, including Home, Back, Recent Apps, Lock Screen, Screenshot, Notifications, and Quick Settings.
-- Exposes an `instance` through a companion object for communication with `FloatingButtonService`.
-
-**`SettingsRepository`**
-
-- Wraps `SharedPreferences` with typed properties such as `opacity`, `buttonSizeDp`, and `menuActions`.
-- Serializes `menuActions` as a CSV string containing enum names.
+app/src/main/java/arfoxcode/joaohouto/assistivemenutool/
+├── MainActivity.kt                      # Main UI (Jetpack Compose)
+├── FloatingButtonService.kt             # Foreground service — overlay + menu
+├── AssistiveMenuAccessibilityService.kt # Accessibility service — global actions
+├── MenuAction.kt                        # Enum — all 21 available actions
+├── SettingsRepository.kt                # SharedPreferences wrapper
+├── AppShortcut.kt                       # Data class for app shortcuts
+├── BootReceiver.kt                      # Auto-start after reboot
+├── ServiceRestartReceiver.kt            # AlarmManager restart receiver
+├── AssistiveDeviceAdminReceiver.kt      # Device admin for protection
+└── ui/theme/                            # Material 3 theme
+```
 
 ---
 
 ## Build & Release
 
-### Debug Build
-
-Open the project in Android Studio and click **Run** to build and launch the debug version.
-
-Alternatively, run:
+### Debug
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-### Release Build
+### Release via GitHub Actions
 
-1. Generate a signing keystore:
+Push a version tag to trigger the automated build, sign, and release workflow:
 
+```bash
+git tag v2.5
+git push origin v2.5
+```
+
+The workflow will:
+1. Build signed APK and AAB
+2. Create a GitHub Release with both files attached
+3. Calculate SHA-256 for verification
+
+### Manual Release
+
+1. Generate a keystore:
    ```bash
-   keytool -genkey -v -keystore release.jks -alias amt -keyalg RSA -keysize 2048 -validity 10000
+   keytool -genkey -v -keystore release.jks -alias amt \
+     -keyalg RSA -keysize 2048 -validity 10000
    ```
 
-2. Configure signing in `app/build.gradle.kts`:
+2. Set GitHub Secrets: `KEYSTORE_BASE64`, `KEY_ALIAS`, `STORE_PASSWORD`, `KEY_PASSWORD`
 
-   ```kotlin
-   signingConfigs {
-       create("release") {
-           storeFile = file("release.jks")
-           storePassword = "..."
-           keyAlias = "amt"
-           keyPassword = "..."
-       }
-   }
-   ```
-
-3. Generate the APK or AAB:
-
+3. Run:
    ```bash
-   ./gradlew assembleRelease
-   ./gradlew bundleRelease
+   ./gradlew assembleRelease   # APK
+   ./gradlew bundleRelease     # AAB for Google Play
    ```
 
-- `assembleRelease` generates a release APK.
-- `bundleRelease` generates an Android App Bundle (AAB) for Google Play.
+---
 
-> The release build enables R8 code shrinking (`isMinifyEnabled = true`) and unused resource removal (`isShrinkResources = true`).
+## Contributing
+
+Contributions are welcome. Please open an issue first to discuss what you'd like to change.
 
 ---
 
 ## Credits
 
-This project is based on the original Assistive Menu Tool project by João Couto.
-
-The original project and its contributors retain their respective copyrights. Modifications, additional features, and other contributions should be attributed to their respective authors.
-
-Original repository: https://github.com/joaohouto/assistive
+Based on the original [Assistive Menu Tool](https://github.com/joaohouto/assistive) by João Couto.
+Extended and maintained by [arfoxcode](https://github.com/arfoxcode).
 
 ---
 
 ## License
 
-This project uses the MIT License. The original copyright and license notices must be retained in accordance with the license terms.
+MIT License — see [LICENSE.md](LICENSE.md)
 
-```text
-MIT License
-
+```
 Copyright (c) 2026 João Couto
 Copyright (c) 2026 arfoxcode
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 ```
