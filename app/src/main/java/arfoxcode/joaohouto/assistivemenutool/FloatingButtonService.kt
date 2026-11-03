@@ -1149,10 +1149,19 @@ class FloatingButtonService : Service() {
             val seekBar = android.widget.SeekBar(this).apply {
                 this.max      = max
                 progress      = current
-                progressDrawable?.setColorFilter(Color.WHITE,
-                    android.graphics.PorterDuff.Mode.SRC_IN)
-                thumb?.setColorFilter(Color.WHITE,
-                    android.graphics.PorterDuff.Mode.SRC_IN)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    progressDrawable?.colorFilter = android.graphics.BlendModeColorFilter(
+                        Color.WHITE, android.graphics.BlendMode.SRC_IN)
+                    thumb?.colorFilter = android.graphics.BlendModeColorFilter(
+                        Color.WHITE, android.graphics.BlendMode.SRC_IN)
+                } else {
+                    @Suppress("DEPRECATION")
+                    progressDrawable?.setColorFilter(Color.WHITE,
+                        android.graphics.PorterDuff.Mode.SRC_IN)
+                    @Suppress("DEPRECATION")
+                    thumb?.setColorFilter(Color.WHITE,
+                        android.graphics.PorterDuff.Mode.SRC_IN)
+                }
                 layoutParams  = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
                     .also { it.topMargin = dpToPx(4); it.bottomMargin = dpToPx(4) }
                 setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
