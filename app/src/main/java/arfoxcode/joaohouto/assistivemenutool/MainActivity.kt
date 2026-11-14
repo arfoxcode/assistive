@@ -3,10 +3,19 @@ package arfoxcode.joaohouto.assistivemenutool
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import coil.compose.AsyncImage
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import coil.request.ImageRequest
+import java.io.ByteArrayOutputStream
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -92,10 +101,20 @@ class MainActivity : ComponentActivity() {
                     isBatteryOptimized               = { isBatteryOptimized() },
                     requestIgnoreBatteryOptimization = { requestIgnoreBatteryOptimization() },
                     isDeviceAdminActive              = { isDeviceAdminActive() },
-                    requestDeviceAdmin               = { requestDeviceAdmin() }
+                    requestDeviceAdmin               = { requestDeviceAdmin() },
+                    encodeImage                      = { uri -> encodeImageToBase64(uri) }
                 )
             }
         }
+    }
+
+    fun encodeImageToBase64(uri: Uri): String? {
+        return try {
+            val inputStream = contentResolver.openInputStream(uri) ?: return null
+            val bytes = inputStream.readBytes()
+            inputStream.close()
+            Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (_: Exception) { null }
     }
 
     fun isDeviceAdminActive(): Boolean {
@@ -192,7 +211,8 @@ private fun MainScreen(
     isBatteryOptimized: () -> Boolean,
     requestIgnoreBatteryOptimization: () -> Unit,
     isDeviceAdminActive: () -> Boolean,
-    requestDeviceAdmin: () -> Unit
+    requestDeviceAdmin: () -> Unit,
+    encodeImage: (Uri) -> String?
 ) {
     var overlayGranted       by remember { mutableStateOf(hasOverlayPermission()) }
     var accessibilityEnabled by remember { mutableStateOf(hasAccessibilityService()) }
@@ -292,7 +312,7 @@ private fun MainScreen(
             // ── Button appearance ──────────────────────────────────────────
             item {
                 SectionLabel(stringResource(R.string.title_appearance))
-                AppearanceSection(settings)
+                AppearanceSection(settings, encodeImage)
                 Spacer(Modifier.height(24.dp))
             }
 
@@ -722,7 +742,8 @@ private fun MenuThemePreview(theme: String, customColor: Color) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun AppearanceSection(settings: SettingsRepository) {
+@Composable
+private fun AppearanceSection(settings: SettingsRepository, encodeImage: (Uri) -> String?) {
     var shape         by remember { mutableStateOf(settings.buttonShape) }
     var outerColor    by remember { mutableStateOf(Color(settings.outerColor)) }
     var innerColor    by remember { mutableStateOf(Color(settings.innerColor)) }
@@ -730,6 +751,46 @@ private fun AppearanceSection(settings: SettingsRepository) {
     var borderColor   by remember { mutableStateOf(Color(settings.borderColor)) }
     var borderWidth   by remember { mutableIntStateOf(settings.borderWidthDp) }
     var colorTarget   by remember { mutableStateOf<String?>(null) }
+
+    // Icon custom state
+    var iconBase64    by remember { mutableStateOf(settings.buttonIconBase64) }
+    var iconShape     by remember { mutableStateOf(settings.buttonIconShape) }
+    var bgTransparent by remember { mutableStateOf(settings.buttonBackgroundTransparent) }
+    var showAppIconPicker by remember { mutableStateOf(false) }
+    var apps          by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+
+    // Launcher untuk pilih gambar/GIF dari galeri
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        val encoded = encodeImage(uri)
+        if (encoded != null) {
+            iconBase64 = encoded
+            settings.buttonIconBase64 = encoded
+        }
+    }
+
+    if (showAppIconPicker) {
+        LaunchedEffect(Unit) { if (apps.isEmpty()) apps = emptyList() }
+        AppPickerDialog(
+            apps = apps,
+            onDismiss = { showAppIconPicker = false },
+            onPick = { app ->
+                // Encode icon app ke Base64
+                val encoded = app.icon?.let { bmp ->
+                    val out = ByteArrayOutputStream()
+                    bmp.compress(Bitmap.CompressFormat.PNG, 90, out)
+                    Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+                }
+                if (encoded != null) {
+                    iconBase64 = encoded
+                    settings.buttonIconBase64 = encoded
+                }
+                showAppIconPicker = false
+            }
+        )
+    }
 
     colorTarget?.let { target ->
         val cur = when (target) { "outer" -> outerColor; "inner" -> innerColor; else -> borderColor }
@@ -807,6 +868,132 @@ private fun AppearanceSection(settings: SettingsRepository) {
                 Slider(value = borderWidth.toFloat(), onValueChange = { borderWidth = it.roundToInt() },
                     onValueChangeFinished = { settings.borderWidthDp = borderWidth },
                     valueRange = 1f..8f, steps = 6, modifier = Modifier.fillMaxWidth())
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        ModernDivider()
+        Spacer(Modifier.height(16.dp))
+
+        // ── Background transparent ────────────────────────────────────
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Column {
+                Text(stringResource(R.string.label_transparent_bg),
+                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.label_transparent_bg_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(
+                checked = bgTransparent,
+                onCheckedChange = {
+                    bgTransparent = it
+                    settings.buttonBackgroundTransparent = it
+                }
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+        ModernDivider()
+        Spacer(Modifier.height(16.dp))
+
+        // ── Custom icon ───────────────────────────────────────────────
+        Text(stringResource(R.string.label_custom_icon),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(10.dp))
+
+        // Preview icon yang dipilih
+        if (!iconBase64.isNullOrEmpty()) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val imageLoader = coil.ImageLoader.Builder(context)
+                    .components {
+                        if (android.os.Build.VERSION.SDK_INT >= 28) {
+                            add(ImageDecoderDecoder.Factory())
+                        } else {
+                            add(GifDecoder.Factory())
+                        }
+                    }.build()
+
+                val bytes = remember(iconBase64) {
+                    try { Base64.decode(iconBase64, Base64.NO_WRAP) } catch (_: Exception) { null }
+                }
+                if (bytes != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context).data(bytes).crossfade(true).build(),
+                        imageLoader = imageLoader,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(
+                                when (iconShape) {
+                                    SettingsRepository.ICON_SHAPE_CIRCLE  -> CircleShape
+                                    SettingsRepository.ICON_SHAPE_ROUNDED -> RoundedCornerShape(20.dp)
+                                    else -> RoundedCornerShape(0.dp)
+                                }
+                            )
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+
+            // Bentuk icon
+            Text(stringResource(R.string.label_icon_shape),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(6.dp))
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                listOf(
+                    SettingsRepository.ICON_SHAPE_CIRCLE  to stringResource(R.string.shape_circle),
+                    SettingsRepository.ICON_SHAPE_ROUNDED to stringResource(R.string.shape_rounded),
+                    SettingsRepository.ICON_SHAPE_FILL    to stringResource(R.string.shape_fill)
+                ).forEachIndexed { i, (v, l) ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(i, 3),
+                        onClick = { iconShape = v; settings.buttonIconShape = v },
+                        selected = iconShape == v
+                    ) { Text(l, style = MaterialTheme.typography.labelSmall) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+
+            // Tombol hapus icon
+            OutlinedButton(
+                onClick = { iconBase64 = null; settings.buttonIconBase64 = null },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text(stringResource(R.string.action_remove_icon))
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // Tombol pilih icon
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { galleryLauncher.launch("image/*") },
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(painter = painterResource(R.drawable.ic_screenshot),
+                    contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_pick_gallery),
+                    style = MaterialTheme.typography.labelSmall)
+            }
+            OutlinedButton(
+                onClick = { showAppIconPicker = true },
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(painter = painterResource(R.drawable.ic_open_app),
+                    contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_pick_app_icon),
+                    style = MaterialTheme.typography.labelSmall)
             }
         }
     }

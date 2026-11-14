@@ -72,6 +72,23 @@ class SettingsRepository(context: Context) {
     // ── Gesture settings ─────────────────────────────────────────────────────
 
     /** Action yang dijalankan saat long press pada floating button */
+    // ── Button icon custom ───────────────────────────────────────────────────
+
+    /** Base64 PNG/GIF untuk icon button. Null = pakai dot default */
+    var buttonIconBase64: String?
+        get() = prefs.getString(KEY_BUTTON_ICON, null)
+        set(value) = prefs.edit().putString(KEY_BUTTON_ICON, value).apply()
+
+    /** Bentuk icon: "circle" | "rounded" | "fill" */
+    var buttonIconShape: String
+        get() = prefs.getString(KEY_BUTTON_ICON_SHAPE, ICON_SHAPE_CIRCLE) ?: ICON_SHAPE_CIRCLE
+        set(value) = prefs.edit().putString(KEY_BUTTON_ICON_SHAPE, value).apply()
+
+    /** Background button transparan atau tidak */
+    var buttonBackgroundTransparent: Boolean
+        get() = prefs.getBoolean(KEY_BUTTON_BG_TRANSPARENT, false)
+        set(value) = prefs.edit().putBoolean(KEY_BUTTON_BG_TRANSPARENT, value).apply()
+
     var longPressAction: MenuAction
         get() {
             val stored = prefs.getString(KEY_LONG_PRESS_ACTION, null)
@@ -133,6 +150,13 @@ class SettingsRepository(context: Context) {
         const val KEY_POPUP_SLOTS       = "popup_slots"
         const val KEY_FAVORITE_SLOTS    = "favorite_slots"
         const val KEY_LONG_PRESS_ACTION = "long_press_action"
+        const val KEY_BUTTON_ICON            = "button_icon"
+        const val KEY_BUTTON_ICON_SHAPE      = "button_icon_shape"
+        const val KEY_BUTTON_BG_TRANSPARENT  = "button_bg_transparent"
+
+        const val ICON_SHAPE_CIRCLE  = "circle"
+        const val ICON_SHAPE_ROUNDED = "rounded"
+        const val ICON_SHAPE_FILL    = "fill"
         const val KEY_MENU_THEME = "menu_theme"
         const val KEY_MENU_CUSTOM_COLOR = "menu_custom_color"
 

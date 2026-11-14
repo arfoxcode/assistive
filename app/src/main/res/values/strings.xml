@@ -44,12 +44,22 @@
     <string name="label_shape">Shape</string>
     <string name="shape_circle">Circle</string>
     <string name="shape_rounded">Rounded</string>
+    <string name="shape_fill">Fill</string>
     <string name="label_colors">Colors</string>
     <string name="label_outer_color">Background color</string>
     <string name="label_inner_color">Dot color</string>
     <string name="label_border">Border</string>
     <string name="label_border_color">Border color</string>
     <string name="label_border_width">Border width</string>
+
+    <!-- Custom icon -->
+    <string name="label_custom_icon">Button Icon</string>
+    <string name="label_icon_shape">Icon Shape</string>
+    <string name="label_transparent_bg">Transparent Background</string>
+    <string name="label_transparent_bg_desc">Remove button background color</string>
+    <string name="action_pick_gallery">From Gallery</string>
+    <string name="action_pick_app_icon">App Icon</string>
+    <string name="action_remove_icon">Remove Custom Icon</string>
 
     <!-- Color picker -->
     <string name="title_color_picker">Pick a Color</string>

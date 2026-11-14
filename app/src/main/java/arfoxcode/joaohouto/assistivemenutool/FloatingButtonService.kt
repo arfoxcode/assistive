@@ -5,6 +5,11 @@ import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.view.animation.OvershootInterpolator
 import android.content.res.Configuration
+import android.graphics.BitmapFactory
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.BitmapDrawable
+import android.util.Base64
+import android.widget.ImageView
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -72,7 +77,10 @@ class FloatingButtonService : Service() {
             SettingsRepository.KEY_INNER_COLOR,
             SettingsRepository.KEY_BORDER_ENABLED,
             SettingsRepository.KEY_BORDER_COLOR,
-            SettingsRepository.KEY_BORDER_WIDTH  -> rebuildButton()
+            SettingsRepository.KEY_BORDER_WIDTH,
+            SettingsRepository.KEY_BUTTON_ICON,
+            SettingsRepository.KEY_BUTTON_ICON_SHAPE,
+            SettingsRepository.KEY_BUTTON_BG_TRANSPARENT -> rebuildButton()
         }
     }
 
@@ -207,12 +215,15 @@ class FloatingButtonService : Service() {
     }
 
     private fun buildButtonView(sizePx: Int): View {
-        val shape        = settings.buttonShape
-        val outerColor   = settings.outerColor
-        val innerColor   = settings.innerColor
-        val borderEnabled = settings.borderEnabled
-        val borderColor  = settings.borderColor
-        val borderWidthPx = dpToPx(settings.borderWidthDp)
+        val shape               = settings.buttonShape
+        val outerColor          = settings.outerColor
+        val innerColor          = settings.innerColor
+        val borderEnabled       = settings.borderEnabled
+        val borderColor         = settings.borderColor
+        val borderWidthPx       = dpToPx(settings.borderWidthDp)
+        val iconBase64          = settings.buttonIconBase64
+        val iconShape           = settings.buttonIconShape
+        val bgTransparent       = settings.buttonBackgroundTransparent
 
         val cornerRadius = when (shape) {
             SettingsRepository.SHAPE_CIRCLE       -> sizePx / 2f
@@ -222,27 +233,94 @@ class FloatingButtonService : Service() {
 
         val outerBg = GradientDrawable().apply {
             this.shape = GradientDrawable.RECTANGLE
-            setColor(outerColor)
+            setColor(if (bgTransparent) android.graphics.Color.TRANSPARENT else outerColor)
             setCornerRadius(cornerRadius)
-            if (borderEnabled) setStroke(borderWidthPx, borderColor)
+            if (borderEnabled && !bgTransparent) setStroke(borderWidthPx, borderColor)
         }
 
-        // Inner dot selalu lingkaran sempurna
-        val innerBg = GradientDrawable().apply {
-            this.shape = GradientDrawable.OVAL
-            setColor(innerColor)
-        }
-
-        val innerSizePx = (sizePx * 0.38f).toInt()
-        val innerView = View(this).apply {
-            background = innerBg
-            layoutParams = FrameLayout.LayoutParams(innerSizePx, innerSizePx, Gravity.CENTER)
-        }
-
-        return FrameLayout(this).apply {
+        val container = FrameLayout(this).apply {
             background = outerBg
-            elevation = dpToPx(6).toFloat()
-            addView(innerView)
+            elevation  = if (bgTransparent) 0f else dpToPx(6).toFloat()
+        }
+
+        if (!iconBase64.isNullOrEmpty()) {
+            // Pakai icon custom (gambar/GIF)
+            val iconSizePx = when (iconShape) {
+                SettingsRepository.ICON_SHAPE_FILL -> sizePx
+                else -> (sizePx * 0.72f).toInt()
+            }
+            val iconCorner = when (iconShape) {
+                SettingsRepository.ICON_SHAPE_CIRCLE  -> iconSizePx / 2f
+                SettingsRepository.ICON_SHAPE_ROUNDED -> iconSizePx * 0.22f
+                else                                   -> 0f // fill — ikut outer shape
+            }
+
+            val iconView = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                val lp = FrameLayout.LayoutParams(iconSizePx, iconSizePx, Gravity.CENTER)
+                layoutParams = lp
+                // Clip sesuai bentuk icon
+                if (iconShape != SettingsRepository.ICON_SHAPE_FILL) {
+                    val clipBg = GradientDrawable().apply {
+                        this.shape = GradientDrawable.RECTANGLE
+                        setCornerRadius(iconCorner)
+                        setColor(android.graphics.Color.TRANSPARENT)
+                    }
+                    outlineProvider = object : android.view.ViewOutlineProvider() {
+                        override fun getOutline(view: View, outline: android.graphics.Outline) {
+                            outline.setRoundRect(0, 0, view.width, view.height, iconCorner)
+                        }
+                    }
+                    clipToOutline = true
+                }
+                loadIconFromBase64(this, iconBase64)
+            }
+            container.addView(iconView)
+        } else {
+            // Default: dot tengah
+            val innerBg = GradientDrawable().apply {
+                this.shape = GradientDrawable.OVAL
+                setColor(innerColor)
+            }
+            val innerSizePx = (sizePx * 0.38f).toInt()
+            container.addView(View(this).apply {
+                background = innerBg
+                layoutParams = FrameLayout.LayoutParams(innerSizePx, innerSizePx, Gravity.CENTER)
+            })
+        }
+
+        return container
+    }
+
+    /**
+     * Load gambar atau GIF dari Base64 ke ImageView.
+     * GIF menggunakan AnimatedImageDrawable (API 28+), fallback ke Bitmap untuk API < 28.
+     */
+    private fun loadIconFromBase64(imageView: ImageView, base64: String) {
+        try {
+            val bytes = Base64.decode(base64, Base64.NO_WRAP)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                val source = android.graphics.ImageDecoder.createSource(
+                    android.content.res.Resources.getSystem(),
+                    android.graphics.ImageDecoder.createSource(bytes.let {
+                        java.io.ByteArrayInputStream(it)
+                    }.let {
+                        java.nio.ByteBuffer.wrap(bytes)
+                    })
+                )
+                try {
+                    val drawable = android.graphics.ImageDecoder.decodeDrawable(source)
+                    imageView.setImageDrawable(drawable)
+                    // Start animasi jika GIF
+                    if (drawable is AnimatedImageDrawable) drawable.start()
+                    return
+                } catch (_: Exception) {}
+            }
+            // Fallback: decode sebagai Bitmap biasa
+            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            if (bmp != null) imageView.setImageBitmap(bmp)
+        } catch (_: Exception) {
+            imageView.setImageDrawable(null)
         }
     }
 
