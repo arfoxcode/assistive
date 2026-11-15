@@ -312,7 +312,7 @@ private fun MainScreen(
             // ── Button appearance ──────────────────────────────────────────
             item {
                 SectionLabel(stringResource(R.string.title_appearance))
-                AppearanceSection(settings, encodeImage)
+                AppearanceSection(settings, encodeImage, getInstalledApps)
                 Spacer(Modifier.height(24.dp))
             }
 
@@ -743,7 +743,11 @@ private fun MenuThemePreview(theme: String, customColor: Color) {
 
 @Composable
 @Composable
-private fun AppearanceSection(settings: SettingsRepository, encodeImage: (Uri) -> String?) {
+private fun AppearanceSection(
+    settings: SettingsRepository,
+    encodeImage: (Uri) -> String?,
+    getInstalledApps: () -> List<AppInfo> = { emptyList() }
+) {
     var shape         by remember { mutableStateOf(settings.buttonShape) }
     var outerColor    by remember { mutableStateOf(Color(settings.outerColor)) }
     var innerColor    by remember { mutableStateOf(Color(settings.innerColor)) }
@@ -771,13 +775,18 @@ private fun AppearanceSection(settings: SettingsRepository, encodeImage: (Uri) -
         }
     }
 
+    // Load apps saat picker dibuka
+    LaunchedEffect(showAppIconPicker) {
+        if (showAppIconPicker && apps.isEmpty()) {
+            apps = getInstalledApps()
+        }
+    }
+
     if (showAppIconPicker) {
-        LaunchedEffect(Unit) { if (apps.isEmpty()) apps = emptyList() }
         AppPickerDialog(
             apps = apps,
             onDismiss = { showAppIconPicker = false },
             onPick = { app ->
-                // Encode icon app ke Base64
                 val encoded = app.icon?.let { bmp ->
                     val out = ByteArrayOutputStream()
                     bmp.compress(Bitmap.CompressFormat.PNG, 90, out)
@@ -807,7 +816,17 @@ private fun AppearanceSection(settings: SettingsRepository, encodeImage: (Uri) -
     ModernCard {
         // Live preview
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            ButtonPreview(shape, outerColor, innerColor, borderEnabled, borderColor, borderWidth)
+            ButtonPreview(
+                shape         = shape,
+                outerColor    = outerColor,
+                innerColor    = innerColor,
+                borderEnabled = borderEnabled,
+                borderColor   = borderColor,
+                borderWidthDp = borderWidth,
+                iconBase64    = iconBase64,
+                iconShape     = iconShape,
+                bgTransparent = bgTransparent
+            )
         }
 
         Spacer(Modifier.height(24.dp))
@@ -905,9 +924,11 @@ private fun AppearanceSection(settings: SettingsRepository, encodeImage: (Uri) -
 
         // Preview icon yang dipilih
         if (!iconBase64.isNullOrEmpty()) {
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val imageLoader = coil.ImageLoader.Builder(context)
+            val context = androidx.compose.ui.platform.LocalContext.current
+
+            // imageLoader di-remember supaya tidak rebuild tiap recompose
+            val imageLoader = remember(context) {
+                coil.ImageLoader.Builder(context)
                     .components {
                         if (android.os.Build.VERSION.SDK_INT >= 28) {
                             add(ImageDecoderDecoder.Factory())
@@ -915,13 +936,19 @@ private fun AppearanceSection(settings: SettingsRepository, encodeImage: (Uri) -
                             add(GifDecoder.Factory())
                         }
                     }.build()
+            }
 
-                val bytes = remember(iconBase64) {
-                    try { Base64.decode(iconBase64, Base64.NO_WRAP) } catch (_: Exception) { null }
-                }
+            val bytes = remember(iconBase64) {
+                try { Base64.decode(iconBase64, Base64.NO_WRAP) } catch (_: Exception) { null }
+            }
+
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (bytes != null) {
                     AsyncImage(
-                        model = ImageRequest.Builder(context).data(bytes).crossfade(true).build(),
+                        model = ImageRequest.Builder(context)
+                            .data(bytes)
+                            .crossfade(true)
+                            .build(),
                         imageLoader = imageLoader,
                         contentDescription = null,
                         modifier = Modifier
@@ -930,7 +957,7 @@ private fun AppearanceSection(settings: SettingsRepository, encodeImage: (Uri) -
                                 when (iconShape) {
                                     SettingsRepository.ICON_SHAPE_CIRCLE  -> CircleShape
                                     SettingsRepository.ICON_SHAPE_ROUNDED -> RoundedCornerShape(20.dp)
-                                    else -> RoundedCornerShape(0.dp)
+                                    else -> RoundedCornerShape(4.dp)
                                 }
                             )
                     )
@@ -1877,19 +1904,70 @@ private fun ColorChip(label: String, color: Color, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ButtonPreview(shape: String, outerColor: Color, innerColor: Color,
-    borderEnabled: Boolean, borderColor: Color, borderWidthDp: Int) {
+private fun ButtonPreview(
+    shape: String,
+    outerColor: Color,
+    innerColor: Color,
+    borderEnabled: Boolean,
+    borderColor: Color,
+    borderWidthDp: Int,
+    iconBase64: String? = null,
+    iconShape: String = SettingsRepository.ICON_SHAPE_CIRCLE,
+    bgTransparent: Boolean = false
+) {
     val size   = 72.dp
     val inner  = (72 * 0.38f).dp
-    val corner : Dp = when (shape) {
+    val corner: Dp = when (shape) {
         SettingsRepository.SHAPE_CIRCLE       -> 36.dp
         SettingsRepository.SHAPE_ROUNDED_RECT -> (72 * 0.28f).dp
         else -> 36.dp
     }
     val s = RoundedCornerShape(corner)
-    Box(Modifier.size(size).shadow(8.dp, s).clip(s).background(outerColor, s)
-        .then(if (borderEnabled) Modifier.border(borderWidthDp.dp, borderColor, s) else Modifier),
-        contentAlignment = Alignment.Center) {
-        Box(Modifier.size(inner).clip(CircleShape).background(innerColor, CircleShape))
+
+    // Background: transparan atau warna
+    val bgColor = if (bgTransparent) Color.Transparent else outerColor
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .then(if (!bgTransparent) Modifier.shadow(8.dp, s) else Modifier)
+            .clip(s)
+            .background(bgColor, s)
+            .then(if (borderEnabled) Modifier.border(borderWidthDp.dp, borderColor, s) else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!iconBase64.isNullOrEmpty()) {
+            // Tampilkan icon custom
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val imageLoader = remember(context) {
+                coil.ImageLoader.Builder(context).components {
+                    if (android.os.Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory())
+                    else add(GifDecoder.Factory())
+                }.build()
+            }
+            val bytes = remember(iconBase64) {
+                try { Base64.decode(iconBase64, Base64.NO_WRAP) } catch (_: Exception) { null }
+            }
+            val iconSize = when (iconShape) {
+                SettingsRepository.ICON_SHAPE_FILL -> size
+                else -> (72 * 0.72f).dp
+            }
+            val iconClip = when (iconShape) {
+                SettingsRepository.ICON_SHAPE_CIRCLE  -> CircleShape
+                SettingsRepository.ICON_SHAPE_ROUNDED -> RoundedCornerShape(12.dp)
+                else -> RoundedCornerShape(4.dp)
+            }
+            if (bytes != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context).data(bytes).crossfade(true).build(),
+                    imageLoader = imageLoader,
+                    contentDescription = null,
+                    modifier = Modifier.size(iconSize).clip(iconClip)
+                )
+            }
+        } else {
+            // Default dot
+            Box(Modifier.size(inner).clip(CircleShape).background(innerColor, CircleShape))
+        }
     }
 }

@@ -261,11 +261,6 @@ class FloatingButtonService : Service() {
                 layoutParams = lp
                 // Clip sesuai bentuk icon
                 if (iconShape != SettingsRepository.ICON_SHAPE_FILL) {
-                    val clipBg = GradientDrawable().apply {
-                        this.shape = GradientDrawable.RECTANGLE
-                        setCornerRadius(iconCorner)
-                        setColor(android.graphics.Color.TRANSPARENT)
-                    }
                     outlineProvider = object : android.view.ViewOutlineProvider() {
                         override fun getOutline(view: View, outline: android.graphics.Outline) {
                             outline.setRoundRect(0, 0, view.width, view.height, iconCorner)
@@ -300,23 +295,18 @@ class FloatingButtonService : Service() {
         try {
             val bytes = Base64.decode(base64, Base64.NO_WRAP)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                val source = android.graphics.ImageDecoder.createSource(
-                    android.content.res.Resources.getSystem(),
-                    android.graphics.ImageDecoder.createSource(bytes.let {
-                        java.io.ByteArrayInputStream(it)
-                    }.let {
-                        java.nio.ByteBuffer.wrap(bytes)
-                    })
-                )
                 try {
+                    // ImageDecoder.createSource(ByteBuffer) — cara yang benar untuk decode dari bytes
+                    val source = android.graphics.ImageDecoder.createSource(
+                        java.nio.ByteBuffer.wrap(bytes)
+                    )
                     val drawable = android.graphics.ImageDecoder.decodeDrawable(source)
                     imageView.setImageDrawable(drawable)
-                    // Start animasi jika GIF
                     if (drawable is AnimatedImageDrawable) drawable.start()
                     return
                 } catch (_: Exception) {}
             }
-            // Fallback: decode sebagai Bitmap biasa
+            // Fallback API < 28: decode sebagai Bitmap biasa (GIF tampil statis)
             val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             if (bmp != null) imageView.setImageBitmap(bmp)
         } catch (_: Exception) {
