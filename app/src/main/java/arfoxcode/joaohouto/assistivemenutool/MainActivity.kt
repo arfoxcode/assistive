@@ -742,7 +742,6 @@ private fun MenuThemePreview(theme: String, customColor: Color) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-@Composable
 private fun AppearanceSection(
     settings: SettingsRepository,
     encodeImage: (Uri) -> String?,
