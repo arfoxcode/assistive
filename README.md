@@ -151,8 +151,8 @@ app/src/main/java/arfoxcode/joaohouto/assistivemenutool/
 Push a version tag to trigger the automated build, sign, and release workflow:
 
 ```bash
-git tag v2.5
-git push origin v2.5
+git tag v2.96
+git push origin v2.96
 ```
 
 The workflow will:
