@@ -207,4 +207,17 @@
     <string name="anim_bounce_desc">Memantul ke atas dan bawah</string>
     <string name="anim_glow_desc">Shadow berkedip seperti cahaya</string>
     <string name="anim_battery_note">Animasi aktif mengonsumsi sedikit baterai ekstra</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Placeholder strings — referensi dari build chain sebelumnya        -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <string name="action_media_next">Next</string>
+    <string name="action_media_panel">Media</string>
+    <string name="action_media_play_pause">Play / Pause</string>
+    <string name="action_media_prev">Previous</string>
+    <string name="media_no_playing">Nothing playing</string>
+    <string name="notification_access_denied">Notification access denied</string>
+    <string name="notification_access_desc">Required to control media playback</string>
+    <string name="notification_access_granted">Notification access granted</string>
+    <string name="permission_notification_access">Notification access</string>
 </resources>

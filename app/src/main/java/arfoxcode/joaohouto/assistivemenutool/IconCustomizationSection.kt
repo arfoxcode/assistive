@@ -1,17 +1,5 @@
 package arfoxcode.joaohouto.assistivemenutool
 
-/**
- * IconCustomizationSection.kt
- *
- * Berisi semua Composable untuk section kustomisasi floating icon:
- *   1. GradientSection      — toggle + pilih tipe + warna kedua
- *   2. IconModeSection      — tab Dot / Preset / Custom
- *   3. PresetIconGrid       — 15 icon yang bisa dipilih
- *   4. AnimationSection     — pilih gaya animasi idle
- *
- * Dipanggil dari MainActivity sebagai item terpisah dalam LazyColumn.
- */
-
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -23,6 +11,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,13 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import java.io.File
 import java.io.FileOutputStream
 
@@ -60,84 +49,44 @@ fun GradientSection(settings: SettingsRepository, onColorPickRequest: (target: S
     var color1       by remember { mutableStateOf(Color(settings.outerColor)) }
     var color2       by remember { mutableStateOf(Color(settings.gradientColor2)) }
 
-    // Sinkronisasi ulang jika outerColor berubah dari section lain
-    LaunchedEffect(settings.outerColor) { color1 = Color(settings.outerColor) }
+    LaunchedEffect(settings.outerColor)    { color1 = Color(settings.outerColor) }
     LaunchedEffect(settings.gradientColor2) { color2 = Color(settings.gradientColor2) }
 
     ICSurface {
-        // Toggle gradient
-        Row(
-            Modifier.fillMaxWidth(),
-            Arrangement.SpaceBetween,
-            Alignment.CenterVertically
-        ) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column {
-                Text(
-                    stringResource(R.string.label_gradient_enabled),
-                    style      = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    stringResource(R.string.label_gradient_desc),
+                Text(stringResource(R.string.label_gradient_enabled),
+                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.label_gradient_desc),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Switch(
-                checked         = enabled,
-                onCheckedChange = {
-                    enabled = it
-                    settings.gradientEnabled = it
-                }
-            )
+            Switch(checked = enabled, onCheckedChange = { enabled = it; settings.gradientEnabled = it })
         }
 
-        AnimatedVisibility(
-            visible = enabled,
-            enter   = fadeIn() + expandVertically(),
-            exit    = fadeOut() + shrinkVertically()
-        ) {
+        AnimatedVisibility(visible = enabled, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Column {
                 Spacer(Modifier.height(16.dp))
                 ICDivider()
                 Spacer(Modifier.height(16.dp))
 
                 // Preview gradient live
-                GradientPreview(
-                    color1       = color1,
-                    color2       = color2,
-                    gradientType = gradientType
-                )
-
+                GradientPreview(color1 = color1, color2 = color2, gradientType = gradientType)
                 Spacer(Modifier.height(16.dp))
 
-                // Warna 1 (pakai outerColor yang sudah ada)
-                ICColorChip(
-                    label   = stringResource(R.string.label_gradient_color1),
-                    color   = color1,
-                    onClick = { onColorPickRequest("outer") }
-                )
+                ICColorChip(label = stringResource(R.string.label_gradient_color1), color = color1) { onColorPickRequest("outer") }
                 Spacer(Modifier.height(8.dp))
-
-                // Warna 2 — baru
-                ICColorChip(
-                    label   = stringResource(R.string.label_gradient_color2),
-                    color   = color2,
-                    onClick = { onColorPickRequest("gradient2") }
-                )
+                ICColorChip(label = stringResource(R.string.label_gradient_color2), color = color2) { onColorPickRequest("gradient2") }
 
                 Spacer(Modifier.height(16.dp))
                 ICDivider()
                 Spacer(Modifier.height(12.dp))
 
-                Text(
-                    stringResource(R.string.label_gradient_type),
+                Text(stringResource(R.string.label_gradient_type),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(10.dp))
 
-                // 5 pilihan tipe gradient
                 val types = listOf(
                     SettingsRepository.GRADIENT_LINEAR_TB    to stringResource(R.string.gradient_tb),
                     SettingsRepository.GRADIENT_LINEAR_LR    to stringResource(R.string.gradient_lr),
@@ -149,35 +98,18 @@ fun GradientSection(settings: SettingsRepository, onColorPickRequest: (target: S
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     types.forEach { (typeVal, typeLabel) ->
                         Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    gradientType = typeVal
-                                    settings.gradientType = typeVal
-                                }
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .clickable { gradientType = typeVal; settings.gradientType = typeVal }
                                 .padding(horizontal = 4.dp, vertical = 8.dp),
-                            Arrangement.SpaceBetween,
-                            Alignment.CenterVertically
+                            Arrangement.SpaceBetween, Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                // Mini preview
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 GradientTypeDot(typeVal, color1, color2)
-                                Text(
-                                    typeLabel,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                                Text(typeLabel, style = MaterialTheme.typography.bodyMedium)
                             }
-                            RadioButton(
-                                selected = gradientType == typeVal,
-                                onClick  = {
-                                    gradientType = typeVal
-                                    settings.gradientType = typeVal
-                                }
-                            )
+                            RadioButton(selected = gradientType == typeVal,
+                                onClick = { gradientType = typeVal; settings.gradientType = typeVal })
                         }
                     }
                 }
@@ -189,28 +121,19 @@ fun GradientSection(settings: SettingsRepository, onColorPickRequest: (target: S
 @Composable
 private fun GradientPreview(color1: Color, color2: Color, gradientType: String) {
     val brush: Brush = when (gradientType) {
-        SettingsRepository.GRADIENT_LINEAR_LR   -> Brush.horizontalGradient(listOf(color1, color2))
-        SettingsRepository.GRADIENT_LINEAR_DIAG -> Brush.linearGradient(listOf(color1, color2))
-        SettingsRepository.GRADIENT_LINEAR_DIAG2-> Brush.linearGradient(
+        SettingsRepository.GRADIENT_LINEAR_LR    -> Brush.horizontalGradient(listOf(color1, color2))
+        SettingsRepository.GRADIENT_LINEAR_DIAG  -> Brush.linearGradient(listOf(color1, color2))
+        SettingsRepository.GRADIENT_LINEAR_DIAG2 -> Brush.linearGradient(
             listOf(color1, color2),
             start = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f),
             end   = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY)
         )
-        SettingsRepository.GRADIENT_RADIAL      -> Brush.radialGradient(listOf(color1, color2))
-        else                                     -> Brush.verticalGradient(listOf(color1, color2))
+        SettingsRepository.GRADIENT_RADIAL       -> Brush.radialGradient(listOf(color1, color2))
+        else                                      -> Brush.verticalGradient(listOf(color1, color2))
     }
-
     Box(
-        Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(brush)
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                RoundedCornerShape(16.dp)
-            )
+        Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(16.dp)).background(brush)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
     )
 }
 
@@ -228,16 +151,13 @@ private fun GradientTypeDot(type: String, color1: Color, color2: Color) {
         else                                      -> Brush.verticalGradient(listOf(color1, color2))
     }
     Box(
-        Modifier
-            .size(28.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(brush)
+        Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(brush)
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
     )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Icon Mode Section — Tab: Dot / Preset / Custom
+// 2. Icon Mode Section
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -251,30 +171,26 @@ fun IconModeSection(settings: SettingsRepository) {
 
     val context = LocalContext.current
 
-    // Launcher untuk pick gambar dari galeri
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             val path = processAndSaveCustomIcon(context, uri)
             if (path != null) {
-                customPath             = path
+                customPath              = path
                 settings.iconCustomPath = path
                 settings.iconMode       = SettingsRepository.ICON_MODE_CUSTOM
-                iconMode               = SettingsRepository.ICON_MODE_CUSTOM
+                iconMode                = SettingsRepository.ICON_MODE_CUSTOM
             }
         }
     }
 
     ICSurface {
-        Text(
-            stringResource(R.string.label_icon_mode),
-            style      = MaterialTheme.typography.labelMedium,
-            color      = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(stringResource(R.string.label_icon_mode),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(10.dp))
 
-        // Tab selector: Dot / Preset / Custom
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             listOf(
                 SettingsRepository.ICON_MODE_DOT    to stringResource(R.string.icon_mode_dot),
@@ -284,43 +200,28 @@ fun IconModeSection(settings: SettingsRepository) {
                 SegmentedButton(
                     shape    = SegmentedButtonDefaults.itemShape(i, 3),
                     selected = iconMode == modeVal,
-                    onClick  = {
-                        iconMode          = modeVal
-                        settings.iconMode = modeVal
-                    }
+                    onClick  = { iconMode = modeVal; settings.iconMode = modeVal }
                 ) {
                     Text(modeLabel, style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
 
-        // Panel konten sesuai mode
-        AnimatedVisibility(
-            visible = iconMode == SettingsRepository.ICON_MODE_PRESET,
-            enter   = fadeIn() + expandVertically(),
-            exit    = fadeOut() + shrinkVertically()
-        ) {
+        // Panel preset
+        AnimatedVisibility(visible = iconMode == SettingsRepository.ICON_MODE_PRESET,
+            enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Column {
                 Spacer(Modifier.height(16.dp))
                 ICDivider()
                 Spacer(Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.label_icon_color),
+                Text(stringResource(R.string.label_icon_color_hint),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(4.dp))
-                // Warna icon dipakai dari innerColor yang sudah ada
-                Text(
-                    stringResource(R.string.label_icon_color_hint),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                 Spacer(Modifier.height(12.dp))
                 PresetIconGrid(
-                    selectedId    = iconPreset,
-                    iconColor     = innerColor,
-                    onSelect      = { preset ->
+                    selectedId = iconPreset,
+                    iconColor  = innerColor,
+                    onSelect   = { preset ->
                         iconPreset          = preset.id
                         settings.iconPreset = preset.id
                     }
@@ -328,27 +229,22 @@ fun IconModeSection(settings: SettingsRepository) {
             }
         }
 
-        AnimatedVisibility(
-            visible = iconMode == SettingsRepository.ICON_MODE_CUSTOM,
-            enter   = fadeIn() + expandVertically(),
-            exit    = fadeOut() + shrinkVertically()
-        ) {
+        // Panel custom
+        AnimatedVisibility(visible = iconMode == SettingsRepository.ICON_MODE_CUSTOM,
+            enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
             Column {
                 Spacer(Modifier.height(16.dp))
                 ICDivider()
                 Spacer(Modifier.height(12.dp))
 
-                // Preview thumbnail jika sudah ada
                 if (customPath.isNotEmpty() && File(customPath).exists()) {
                     CustomIconPreview(customPath)
                     Spacer(Modifier.height(12.dp))
                 }
 
-                Text(
-                    stringResource(R.string.label_custom_icon_note),
+                Text(stringResource(R.string.label_custom_icon_note),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(10.dp))
 
                 OutlinedButton(
@@ -356,23 +252,17 @@ fun IconModeSection(settings: SettingsRepository) {
                     modifier = Modifier.fillMaxWidth(),
                     shape    = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(
-                        painter           = painterResource(R.drawable.ic_open_app),
-                        contentDescription = null,
-                        modifier          = Modifier.size(18.dp)
-                    )
+                    Icon(painter = painterResource(R.drawable.ic_open_app),
+                        contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (customPath.isEmpty()) stringResource(R.string.action_pick_image)
-                        else stringResource(R.string.action_change_image)
-                    )
+                    Text(if (customPath.isEmpty()) stringResource(R.string.action_pick_image)
+                         else stringResource(R.string.action_change_image))
                 }
 
                 if (customPath.isNotEmpty()) {
                     Spacer(Modifier.height(6.dp))
                     TextButton(
-                        onClick  = {
-                            // Hapus file dan reset ke dot
+                        onClick = {
                             try { File(customPath).delete() } catch (_: Exception) {}
                             customPath              = ""
                             settings.iconCustomPath = ""
@@ -381,8 +271,7 @@ fun IconModeSection(settings: SettingsRepository) {
                         },
                         modifier = Modifier.fillMaxWidth(),
                         colors   = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
+                            contentColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text(stringResource(R.string.action_remove_custom_icon))
                     }
@@ -398,24 +287,19 @@ private fun PresetIconGrid(
     iconColor:  Color,
     onSelect:   (SettingsRepository.PresetIcon) -> Unit
 ) {
-    // 5 kolom, tinggi = auto (3 baris untuk 15 icon)
     LazyVerticalGrid(
-        columns             = GridCells.Fixed(5),
-        modifier            = Modifier.height(200.dp),
+        columns               = GridCells.Fixed(5),
+        modifier              = Modifier.height(200.dp),
         verticalArrangement   = Arrangement.spacedBy(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        userScrollEnabled   = false
+        userScrollEnabled     = false
     ) {
         items(SettingsRepository.PRESET_ICONS) { preset ->
             val isSelected = preset.id == selectedId
             Box(
-                Modifier
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
+                Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp))
+                    .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant)
                     .border(
                         width = if (isSelected) 2.dp else 0.dp,
                         color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -438,24 +322,21 @@ private fun PresetIconGrid(
 
 @Composable
 private fun CustomIconPreview(path: String) {
-    // Decode thumbnail 64×64 — bukan load penuh 256×256 ke UI
-    val bmp = remember(path) {
+    // Load dengan inSampleSize=4 → decode ~64×64 untuk thumbnail, bukan 256×256 penuh
+    val bmp: Bitmap? = remember(path) {
         try {
             val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
             BitmapFactory.decodeFile(path, opts)
         } catch (_: Exception) { null }
     }
     if (bmp != null) {
-        Box(
-            Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            androidx.compose.foundation.Image(
-                bitmap             = bmp.asImageBitmapSafe(),
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            // FIX: pakai import androidx.compose.ui.graphics.asImageBitmap
+            // yang sudah diimport di atas, bukan syntax function call langsung
+            Image(
+                bitmap             = bmp.asImageBitmap(),
                 contentDescription = null,
-                modifier           = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
+                modifier           = Modifier.size(72.dp).clip(CircleShape)
                     .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
             )
         }
@@ -479,77 +360,48 @@ fun AnimationSection(settings: SettingsRepository) {
     )
 
     ICSurface {
-        Text(
-            stringResource(R.string.label_animation),
-            style      = MaterialTheme.typography.labelMedium,
-            color      = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(stringResource(R.string.label_animation),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(10.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             options.forEach { (styleVal, styleLabel) ->
                 Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable {
-                            animStyle             = styleVal
-                            settings.animationStyle = styleVal
-                        }
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                        .clickable { animStyle = styleVal; settings.animationStyle = styleVal }
                         .padding(horizontal = 4.dp, vertical = 10.dp),
-                    Arrangement.SpaceBetween,
-                    Alignment.CenterVertically
+                    Arrangement.SpaceBetween, Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment    = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        // Dot indikator gaya animasi
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         AnimationIndicator(styleVal)
                         Column {
-                            Text(
-                                styleLabel,
-                                style      = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                animDescriptionFor(styleVal),
+                            Text(styleLabel, style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium)
+                            Text(animDescriptionFor(styleVal),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    RadioButton(
-                        selected = animStyle == styleVal,
-                        onClick  = {
-                            animStyle             = styleVal
-                            settings.animationStyle = styleVal
-                        }
-                    )
+                    RadioButton(selected = animStyle == styleVal,
+                        onClick = { animStyle = styleVal; settings.animationStyle = styleVal })
                 }
             }
         }
 
-        // Peringatan konsumsi baterai jika animasi aktif
         if (animStyle != SettingsRepository.ANIM_NONE) {
             Spacer(Modifier.height(8.dp))
             ICDivider()
             Spacer(Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    painter           = painterResource(R.drawable.ic_notifications),
-                    contentDescription = null,
-                    modifier          = Modifier.size(14.dp),
-                    tint              = MaterialTheme.colorScheme.tertiary
-                )
-                Text(
-                    stringResource(R.string.anim_battery_note),
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(painter = painterResource(R.drawable.ic_notifications),
+                    contentDescription = null, modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.tertiary)
+                Text(stringResource(R.string.anim_battery_note),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
+                    color = MaterialTheme.colorScheme.tertiary)
             }
         }
     }
@@ -564,12 +416,7 @@ private fun AnimationIndicator(style: String) {
         SettingsRepository.ANIM_GLOW      -> Color(0xFF9C27B0)
         else                               -> MaterialTheme.colorScheme.outlineVariant
     }
-    Box(
-        Modifier
-            .size(10.dp)
-            .clip(CircleShape)
-            .background(color)
-    )
+    Box(Modifier.size(10.dp).clip(CircleShape).background(color))
 }
 
 @Composable
@@ -582,11 +429,11 @@ private fun animDescriptionFor(style: String): String = when (style) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared UI helpers internal
+// Shared UI helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ICSurface(content: @Composable ColumnScope.() -> Unit) {
+fun ICSurface(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape           = RoundedCornerShape(20.dp),
         color           = MaterialTheme.colorScheme.surface,
@@ -598,39 +445,27 @@ private fun ICSurface(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun ICDivider() {
+fun ICDivider() {
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }
 
 @Composable
 fun ICColorChip(label: String, color: Color, onClick: () -> Unit) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 8.dp),
-        Arrangement.SpaceBetween,
-        Alignment.CenterVertically
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
+        Arrangement.SpaceBetween, Alignment.CenterVertically
     ) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(
-            verticalAlignment    = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                "#%06X".format(color.toArgb() and 0xFFFFFF),
-                style      = MaterialTheme.typography.labelMedium,
-                color      = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
-            )
-            Box(
-                Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(color)
-                    .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)
-            )
+        Text(label, style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("#%06X".format(color.toArgb() and 0xFFFFFF),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium)
+            Box(Modifier.size(28.dp).clip(CircleShape).background(color)
+                .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape))
         }
     }
 }
@@ -639,12 +474,6 @@ fun ICColorChip(label: String, color: Color, onClick: () -> Unit) {
 // Image processing — resize ke 256×256, simpan ke filesDir
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Buka Uri gambar, resize ke 256×256 (crop center), simpan sebagai PNG
- * ke filesDir/custom_button_icon.png.
- *
- * Return: path absolut ke file yang tersimpan, atau null jika gagal.
- */
 fun processAndSaveCustomIcon(context: Context, uri: Uri): String? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return null
@@ -652,30 +481,20 @@ fun processAndSaveCustomIcon(context: Context, uri: Uri): String? {
         inputStream.close()
         if (original == null) return null
 
-        // Crop ke square, lalu resize ke 256×256
-        val size     = minOf(original.width, original.height)
-        val startX   = (original.width  - size) / 2
-        val startY   = (original.height - size) / 2
-        val cropped  = Bitmap.createBitmap(original, startX, startY, size, size)
-        val resized  = Bitmap.createScaledBitmap(cropped, 256, 256, true)
+        val size    = minOf(original.width, original.height)
+        val startX  = (original.width  - size) / 2
+        val startY  = (original.height - size) / 2
+        val cropped = Bitmap.createBitmap(original, startX, startY, size, size)
+        val resized = Bitmap.createScaledBitmap(cropped, 256, 256, true)
 
-        // Simpan ke filesDir — bukan SharedPreferences
-        val outFile  = File(context.filesDir, "custom_button_icon.png")
-        val fos      = FileOutputStream(outFile)
+        val outFile = File(context.filesDir, "custom_button_icon.png")
+        val fos     = FileOutputStream(outFile)
         resized.compress(Bitmap.CompressFormat.PNG, 90, fos)
         fos.flush(); fos.close()
 
-        // Recycle intermediate bitmaps
         if (cropped !== original) cropped.recycle()
         original.recycle()
 
         outFile.absolutePath
     } catch (_: Exception) { null }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Extension — Bitmap → ImageBitmap (safe)
-// ─────────────────────────────────────────────────────────────────────────────
-
-private fun Bitmap.asImageBitmapSafe(): androidx.compose.ui.graphics.ImageBitmap =
-    androidx.compose.ui.graphics.asImageBitmap(this)
