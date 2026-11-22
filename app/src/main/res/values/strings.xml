@@ -44,22 +44,12 @@
     <string name="label_shape">Shape</string>
     <string name="shape_circle">Circle</string>
     <string name="shape_rounded">Rounded</string>
-    <string name="shape_fill">Fill</string>
     <string name="label_colors">Colors</string>
     <string name="label_outer_color">Background color</string>
     <string name="label_inner_color">Dot color</string>
     <string name="label_border">Border</string>
     <string name="label_border_color">Border color</string>
     <string name="label_border_width">Border width</string>
-
-    <!-- Custom icon -->
-    <string name="label_custom_icon">Button Icon</string>
-    <string name="label_icon_shape">Icon Shape</string>
-    <string name="label_transparent_bg">Transparent Background</string>
-    <string name="label_transparent_bg_desc">Remove button background color</string>
-    <string name="action_pick_gallery">From Gallery</string>
-    <string name="action_pick_app_icon">App Icon</string>
-    <string name="action_remove_icon">Remove Custom Icon</string>
 
     <!-- Color picker -->
     <string name="title_color_picker">Pick a Color</string>
@@ -155,4 +145,66 @@
     <string name="action_edit_label">Edit Label</string>
     <string name="action_change_icon">Change Icon</string>
     <string name="hint_custom_label">Custom label (optional)</string>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- PATCH v2.6 — Floating Icon Customization                           -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Gradient -->
+    <string name="title_gradient">Gradient Background</string>
+    <string name="label_gradient_enabled">Gradient Background</string>
+    <string name="label_gradient_desc">Dua warna untuk background tombol</string>
+    <string name="label_gradient_color1">Warna pertama</string>
+    <string name="label_gradient_color2">Warna kedua</string>
+    <string name="label_gradient_type">Arah gradient</string>
+    <string name="gradient_tb">Atas → Bawah</string>
+    <string name="gradient_lr">Kiri → Kanan</string>
+    <string name="gradient_diag">Diagonal ↘</string>
+    <string name="gradient_diag2">Diagonal ↙</string>
+    <string name="gradient_radial">Radial (dari tengah)</string>
+
+    <!-- Icon mode -->
+    <string name="title_icon_mode">Ikon Tombol</string>
+    <string name="label_icon_mode">Mode Ikon</string>
+    <string name="icon_mode_dot">Titik</string>
+    <string name="icon_mode_preset">Preset</string>
+    <string name="icon_mode_custom">Kustom</string>
+    <string name="label_icon_color">Warna ikon</string>
+    <string name="label_icon_color_hint">Menggunakan warna titik tengah yang sudah diatur di atas</string>
+    <string name="label_custom_icon_note">Gambar akan dipotong menjadi persegi dan disimpan sebagai 256×256px</string>
+    <string name="action_pick_image">Pilih Gambar dari Galeri</string>
+    <string name="action_change_image">Ganti Gambar</string>
+    <string name="action_remove_custom_icon">Hapus Ikon Kustom</string>
+
+    <!-- Preset icon labels -->
+    <string name="preset_icon_star">Bintang</string>
+    <string name="preset_icon_bolt">Petir</string>
+    <string name="preset_icon_hand">Tangan</string>
+    <string name="preset_icon_touch">Sentuh</string>
+    <string name="preset_icon_menu">Menu</string>
+    <string name="preset_icon_plus">Plus</string>
+    <string name="preset_icon_circle">Lingkaran</string>
+    <string name="preset_icon_diamond">Berlian</string>
+    <string name="preset_icon_heart">Hati</string>
+    <string name="preset_icon_leaf">Daun</string>
+    <string name="preset_icon_fire">Api</string>
+    <string name="preset_icon_shield">Perisai</string>
+    <string name="preset_icon_rocket">Roket</string>
+    <string name="preset_icon_wave">Gelombang</string>
+    <string name="preset_icon_infinity">Tak Terbatas</string>
+
+    <!-- Animation -->
+    <string name="title_animation">Animasi Idle</string>
+    <string name="label_animation">Gaya Animasi</string>
+    <string name="anim_none">Tidak Ada</string>
+    <string name="anim_pulse">Pulse</string>
+    <string name="anim_breathing">Breathing</string>
+    <string name="anim_bounce">Bounce</string>
+    <string name="anim_glow">Glow</string>
+    <string name="anim_none_desc">Tombol diam tanpa efek</string>
+    <string name="anim_pulse_desc">Mengembang dan mengecil pelan</string>
+    <string name="anim_breathing_desc">Transparansi naik turun seperti napas</string>
+    <string name="anim_bounce_desc">Memantul ke atas dan bawah</string>
+    <string name="anim_glow_desc">Shadow berkedip seperti cahaya</string>
+    <string name="anim_battery_note">Animasi aktif mengonsumsi sedikit baterai ekstra</string>
 </resources>

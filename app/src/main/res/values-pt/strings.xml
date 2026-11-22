@@ -58,4 +58,14 @@
     <string name="label_brightness">Kecerahan</string>
     <string name="label_alpha">Transparansi</string>
     <string name="action_apply">Terapkan</string>
+    <!-- Media control -->
+    <string name="action_media_play_pause">Play / Pause</string>
+    <string name="action_media_next">Next Track</string>
+    <string name="action_media_prev">Previous Track</string>
+    <string name="action_media_panel">Media Panel</string>
+    <string name="media_no_playing">No media playing</string>
+    <string name="permission_notification_access">Notification Access</string>
+    <string name="notification_access_desc">Required to show song info in Media Panel</string>
+    <string name="notification_access_granted">Active — song info available</string>
+    <string name="notification_access_denied">Inactive — only basic controls</string>
 </resources>

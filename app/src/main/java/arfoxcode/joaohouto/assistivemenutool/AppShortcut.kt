@@ -5,15 +5,6 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 
-/**
- * Merepresentasikan satu slot shortcut app.
- *
- * @param packageName  Package app target. Null = slot kosong.
- * @param label        Label yang ditampilkan. Null = pakai nama app.
- * @param customIcon   Icon custom (Base64 PNG). Null = pakai icon launcher.
- * @param tileSize     Ukuran tile: 1 = 1×1, 2 = 2×2, 3 = 3×3.
- * @param slotIndex    Posisi di grid (0–8).
- */
 data class AppShortcut(
     val packageName: String? = null,
     val label: String? = null,
@@ -22,8 +13,6 @@ data class AppShortcut(
     val slotIndex: Int = 0
 ) {
     val isEmpty get() = packageName == null
-
-    // ── Serialisasi sederhana tanpa library JSON ──────────────────────────────
 
     fun serialize(): String {
         return listOf(
@@ -54,14 +43,12 @@ data class AppShortcut(
 
         fun empty(slotIndex: Int) = AppShortcut(slotIndex = slotIndex)
 
-        /** Encode Bitmap ke Base64 PNG untuk disimpan di SharedPreferences */
         fun encodeBitmap(bitmap: Bitmap): String {
             val out = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
             return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
         }
 
-        /** Decode Base64 PNG ke Bitmap */
         fun decodeBitmap(base64: String): Bitmap? {
             return try {
                 val bytes = Base64.decode(base64, Base64.NO_WRAP)
@@ -71,7 +58,6 @@ data class AppShortcut(
     }
 }
 
-/** Slot action di menu popup — bisa action sistem atau shortcut app */
 data class PopupSlot(
     val type: SlotType = SlotType.EMPTY,
     val action: MenuAction? = null,
@@ -118,17 +104,11 @@ data class PopupSlot(
         fun empty(slotIndex: Int) = PopupSlot(slotIndex = slotIndex)
 
         fun fromAction(action: MenuAction, slotIndex: Int, tileSize: Int = 1) = PopupSlot(
-            type      = SlotType.ACTION,
-            action    = action,
-            tileSize  = tileSize,
-            slotIndex = slotIndex
+            type = SlotType.ACTION, action = action, tileSize = tileSize, slotIndex = slotIndex
         )
 
         fun fromShortcut(shortcut: AppShortcut, slotIndex: Int, tileSize: Int = 1) = PopupSlot(
-            type      = SlotType.SHORTCUT,
-            shortcut  = shortcut,
-            tileSize  = tileSize,
-            slotIndex = slotIndex
+            type = SlotType.SHORTCUT, shortcut = shortcut, tileSize = tileSize, slotIndex = slotIndex
         )
     }
 }

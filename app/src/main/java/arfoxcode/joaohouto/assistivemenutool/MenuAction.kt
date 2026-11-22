@@ -1,29 +1,15 @@
 package arfoxcode.joaohouto.assistivemenutool
 
 enum class MenuAction {
-    // System navigation
     HOME, BACK, RECENTS, LOCK,
-
-    // Volume
     VOLUME_UP, VOLUME_DOWN,
-
-    // Media
     SCREENSHOT, NOTIFICATIONS, QUICK_SETTINGS,
-
-    // App
     OPEN_APP, FAVORITES,
-
-    // NEW: Toggle actions
-    HIDE_BUTTON,    // sembunyikan floating button sementara
-    FLASHLIGHT,     // senter on/off
-    WIFI,           // buka wifi panel
-    CELLULAR,       // buka cellular settings
-    BLUETOOTH,      // buka bluetooth panel
-    SILENT_MODE,    // mode senyap (DND)
-    VIBRATE_MODE,   // mode getar
-    VOLUME_PANEL,   // buka volume mixer lengkap
-    SYSTEM_PANEL,   // panel quick controls (9 tile fix)
-    AIRPLANE_MODE;  // buka halaman airplane mode
+    HIDE_BUTTON, FLASHLIGHT,
+    WIFI, CELLULAR, BLUETOOTH,
+    SILENT_MODE, VIBRATE_MODE,
+    VOLUME_PANEL, SYSTEM_PANEL,
+    AIRPLANE_MODE;
 
     fun iconRes(): Int = when (this) {
         HOME           -> R.drawable.ic_home

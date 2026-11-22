@@ -3,19 +3,10 @@ package arfoxcode.joaohouto.assistivemenutool
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
-import android.util.Base64
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import coil.compose.AsyncImage
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
-import coil.request.ImageRequest
-import java.io.ByteArrayOutputStream
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -76,20 +67,19 @@ class MainActivity : ComponentActivity() {
         setContent {
             AssistiveMenuToolTheme {
                 MainScreen(
-                    settings                  = settings,
-                    hasOverlayPermission      = { Settings.canDrawOverlays(this) },
-                    hasAccessibilityService   = { isAccessibilityServiceEnabled() },
-                    requestOverlayPermission  = {
+                    settings                         = settings,
+                    hasOverlayPermission             = { Settings.canDrawOverlays(this) },
+                    hasAccessibilityService          = { isAccessibilityServiceEnabled() },
+                    requestOverlayPermission         = {
                         startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                             Uri.parse("package:$packageName")))
                     },
-                    openAccessibilitySettings = {
+                    openAccessibilitySettings        = {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     },
-                    isServiceRunning              = { FloatingButtonService.isRunning },
-                    toggleService                 = {
+                    isServiceRunning                 = { FloatingButtonService.isRunning },
+                    toggleService                    = {
                         if (FloatingButtonService.isRunning) {
-                            // Kirim ACTION_STOP supaya service tahu ini user yang stop
                             startService(Intent(this, FloatingButtonService::class.java).apply {
                                 action = FloatingButtonService.ACTION_STOP
                             })
@@ -97,44 +87,31 @@ class MainActivity : ComponentActivity() {
                             startForegroundService(Intent(this, FloatingButtonService::class.java))
                         }
                     },
-                    getInstalledApps              = { getInstalledApps() },
+                    getInstalledApps                 = { getInstalledApps() },
                     isBatteryOptimized               = { isBatteryOptimized() },
                     requestIgnoreBatteryOptimization = { requestIgnoreBatteryOptimization() },
                     isDeviceAdminActive              = { isDeviceAdminActive() },
-                    requestDeviceAdmin               = { requestDeviceAdmin() },
-                    encodeImage                      = { uri -> encodeImageToBase64(uri) }
+                    requestDeviceAdmin               = { requestDeviceAdmin() }
                 )
             }
         }
     }
 
-    fun encodeImageToBase64(uri: Uri): String? {
-        return try {
-            val inputStream = contentResolver.openInputStream(uri) ?: return null
-            val bytes = inputStream.readBytes()
-            inputStream.close()
-            Base64.encodeToString(bytes, Base64.NO_WRAP)
-        } catch (_: Exception) { null }
-    }
-
-    fun isDeviceAdminActive(): Boolean {
-        return AssistiveDeviceAdminReceiver.isAdminActive(this)
-    }
+    fun isDeviceAdminActive(): Boolean = AssistiveDeviceAdminReceiver.isAdminActive(this)
 
     fun requestDeviceAdmin() {
-        val intent = Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-            putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN,
-                AssistiveDeviceAdminReceiver.getComponentName(this@MainActivity))
-            putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                getString(R.string.device_admin_description))
-        }
-        startActivity(intent)
+        startActivity(
+            Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN,
+                    AssistiveDeviceAdminReceiver.getComponentName(this@MainActivity))
+                putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    getString(R.string.device_admin_description))
+            }
+        )
     }
 
-    fun isBatteryOptimized(): Boolean {
-        val pm = getSystemService(PowerManager::class.java)
-        return !pm.isIgnoringBatteryOptimizations(packageName)
-    }
+    fun isBatteryOptimized(): Boolean =
+        !getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
 
     fun requestIgnoreBatteryOptimization() {
         try {
@@ -143,37 +120,26 @@ class MainActivity : ComponentActivity() {
                 Uri.parse("package:$packageName")
             ))
         } catch (_: Exception) {
-            // Fallback ke halaman battery settings
-            startActivity(Intent(
-                android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
-            ))
+            startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         }
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
-        // Cek dua cara:
-        // 1. Instance masih ada (service aktif di memory)
-        // 2. Setting sistem mengatakan service enabled
         if (AssistiveMenuAccessibilityService.isEnabled) return true
         val enabled = Settings.Secure.getString(contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
         return enabled.contains(packageName, ignoreCase = true)
     }
 
-    // Gunakan queryIntentActivities — lebih reliable untuk semua app launcher di API 30+
     private fun getInstalledApps(): List<AppInfo> {
         val pm = packageManager
-        val launcherIntent = Intent(Intent.ACTION_MAIN).also {
-            it.addCategory(Intent.CATEGORY_LAUNCHER)
-        }
+        val launcherIntent = Intent(Intent.ACTION_MAIN).also { it.addCategory(Intent.CATEGORY_LAUNCHER) }
         val flag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M)
             PackageManager.MATCH_ALL else 0
-
         return pm.queryIntentActivities(launcherIntent, flag)
             .mapNotNull { resolveInfo ->
-                val ai = resolveInfo.activityInfo?.applicationInfo ?: return@mapNotNull null
+                val ai  = resolveInfo.activityInfo?.applicationInfo ?: return@mapNotNull null
                 val pkg = ai.packageName
-                // Skip package sendiri
                 if (pkg == packageName) return@mapNotNull null
                 AppInfo(
                     packageName = pkg,
@@ -211,8 +177,7 @@ private fun MainScreen(
     isBatteryOptimized: () -> Boolean,
     requestIgnoreBatteryOptimization: () -> Unit,
     isDeviceAdminActive: () -> Boolean,
-    requestDeviceAdmin: () -> Unit,
-    encodeImage: (Uri) -> String?
+    requestDeviceAdmin: () -> Unit
 ) {
     var overlayGranted       by remember { mutableStateOf(hasOverlayPermission()) }
     var accessibilityEnabled by remember { mutableStateOf(hasAccessibilityService()) }
@@ -234,16 +199,50 @@ private fun MainScreen(
     val allGranted = overlayGranted && accessibilityEnabled
     var showAccessibilityDisclosure by remember { mutableStateOf(false) }
 
+    // State untuk ColorPickerDialog — dikelola di sini agar bisa dibagi
+    // antara AppearanceSection (outer/inner/border) dan GradientSection (gradient2)
+    var colorPickerTarget  by remember { mutableStateOf<String?>(null) }
+    var colorPickerInitial by remember { mutableStateOf(Color.White) }
+
+    // Resolve warna awal sesuai target
+    fun openColorPicker(target: String) {
+        colorPickerInitial = when (target) {
+            "outer"     -> Color(settings.outerColor)
+            "inner"     -> Color(settings.innerColor)
+            "border"    -> Color(settings.borderColor)
+            "gradient2" -> Color(settings.gradientColor2)
+            "menuCustom"-> Color(settings.menuCustomColor)
+            else        -> Color.White
+        }
+        colorPickerTarget = target
+    }
+
+    if (colorPickerTarget != null) {
+        ColorPickerDialog(
+            initial   = colorPickerInitial,
+            onDismiss = { colorPickerTarget = null },
+            onConfirm = { picked ->
+                when (colorPickerTarget) {
+                    "outer"     -> settings.outerColor       = picked.toArgb()
+                    "inner"     -> settings.innerColor       = picked.toArgb()
+                    "border"    -> settings.borderColor      = picked.toArgb()
+                    "gradient2" -> settings.gradientColor2   = picked.toArgb()
+                    "menuCustom"-> settings.menuCustomColor  = picked.toArgb()
+                }
+                colorPickerTarget = null
+            }
+        )
+    }
+
     if (showAccessibilityDisclosure) {
         AlertDialog(
             onDismissRequest = { showAccessibilityDisclosure = false },
-            title = { Text(stringResource(R.string.accessibility_disclosure_title)) },
-            text  = { Text(stringResource(R.string.accessibility_disclosure_message)) },
+            title   = { Text(stringResource(R.string.accessibility_disclosure_title)) },
+            text    = { Text(stringResource(R.string.accessibility_disclosure_message)) },
             confirmButton = {
-                TextButton(onClick = {
-                    showAccessibilityDisclosure = false
-                    openAccessibilitySettings()
-                }) { Text(stringResource(R.string.action_agree_and_continue)) }
+                TextButton(onClick = { showAccessibilityDisclosure = false; openAccessibilitySettings() }) {
+                    Text(stringResource(R.string.action_agree_and_continue))
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showAccessibilityDisclosure = false }) {
@@ -253,9 +252,7 @@ private fun MainScreen(
         )
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
+    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         LazyColumn(
             modifier            = Modifier.fillMaxSize().padding(padding),
             contentPadding      = PaddingValues(bottom = 40.dp),
@@ -287,14 +284,12 @@ private fun MainScreen(
                         granted = accessibilityEnabled,
                         onRequest = { showAccessibilityDisclosure = true }
                     )
-                    // Battery optimization — tampil sebagai warning jika masih dioptimasi
                     ModernPermissionRow(
                         label     = stringResource(R.string.permission_battery),
                         granted   = !batteryOptimized,
                         isWarning = batteryOptimized,
                         onRequest = requestIgnoreBatteryOptimization
                     )
-                    // Device Admin — opsional tapi sangat direkomendasikan
                     ModernPermissionRow(
                         label     = stringResource(R.string.permission_device_admin),
                         granted   = deviceAdminActive,
@@ -309,17 +304,47 @@ private fun MainScreen(
                 Spacer(Modifier.height(24.dp))
             }
 
-            // ── Button appearance ──────────────────────────────────────────
+            // ── Button appearance (shape, solid color, border) ─────────────
             item {
                 SectionLabel(stringResource(R.string.title_appearance))
-                AppearanceSection(settings, encodeImage, getInstalledApps)
+                AppearanceSection(
+                    settings       = settings,
+                    onColorRequest = ::openColorPicker
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ── Gradient ───────────────────────────────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_gradient))
+                GradientSection(
+                    settings          = settings,
+                    onColorPickRequest = ::openColorPicker
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ── Icon mode (Dot / Preset / Custom) ──────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_icon_mode))
+                IconModeSection(settings = settings)
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ── Idle animation ─────────────────────────────────────────────
+            item {
+                SectionLabel(stringResource(R.string.title_animation))
+                AnimationSection(settings = settings)
                 Spacer(Modifier.height(24.dp))
             }
 
             // ── Menu theme ─────────────────────────────────────────────────
             item {
                 SectionLabel(stringResource(R.string.title_menu_theme))
-                MenuThemeSection(settings)
+                MenuThemeSection(
+                    settings       = settings,
+                    onColorRequest = ::openColorPicker
+                )
                 Spacer(Modifier.height(24.dp))
             }
 
@@ -360,9 +385,6 @@ private fun MainScreen(
 
 @Composable
 private fun HeroHeader(serviceRunning: Boolean, allGranted: Boolean, onToggle: () -> Unit) {
-    val activeColor = MaterialTheme.colorScheme.primary
-    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -380,9 +402,7 @@ private fun HeroHeader(serviceRunning: Boolean, allGranted: Boolean, onToggle: (
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
@@ -395,71 +415,27 @@ private fun HeroHeader(serviceRunning: Boolean, allGranted: Boolean, onToggle: (
                 }
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text(
-                        text       = stringResource(R.string.app_name),
-                        style      = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text  = stringResource(R.string.app_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.app_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-
             Spacer(Modifier.height(28.dp))
-
-            // Status + toggle card
-            Surface(
-                shape  = RoundedCornerShape(20.dp),
-                color  = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier            = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalAlignment   = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    when {
-                                        !allGranted    -> MaterialTheme.colorScheme.error
-                                        serviceRunning -> Color(0xFF34C759) // green
-                                        else           -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                    }
-                                )
-                        )
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(
+                            when { !allGranted -> MaterialTheme.colorScheme.error; serviceRunning -> Color(0xFF34C759); else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) }
+                        ))
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = when {
-                                    !allGranted    -> stringResource(R.string.status_permissions_required)
-                                    serviceRunning -> stringResource(R.string.status_active)
-                                    else           -> stringResource(R.string.status_inactive)
-                                },
-                                style      = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
+                                text = when { !allGranted -> stringResource(R.string.status_permissions_required); serviceRunning -> stringResource(R.string.status_active); else -> stringResource(R.string.status_inactive) },
+                                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold
                             )
-                            if (allGranted) {
-                                Text(
-                                    text  = if (serviceRunning) "Tap to stop" else "Tap to start",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            if (allGranted) Text(if (serviceRunning) "Tap to stop" else "Tap to start", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    Switch(
-                        checked         = serviceRunning && allGranted,
-                        onCheckedChange = { onToggle() },
-                        enabled         = allGranted
-                    )
+                    Switch(checked = serviceRunning && allGranted, onCheckedChange = { onToggle() }, enabled = allGranted)
                 }
             }
         }
@@ -473,28 +449,23 @@ private fun HeroHeader(serviceRunning: Boolean, allGranted: Boolean, onToggle: (
 @Composable
 private fun SectionLabel(title: String) {
     Text(
-        text     = title.uppercase(),
-        style    = MaterialTheme.typography.labelSmall,
-        color    = MaterialTheme.colorScheme.primary,
-        fontWeight = FontWeight.Bold,
+        text          = title.uppercase(),
+        style         = MaterialTheme.typography.labelSmall,
+        color         = MaterialTheme.colorScheme.primary,
+        fontWeight    = FontWeight.Bold,
         letterSpacing = 1.2.sp,
-        modifier = Modifier
-            .padding(horizontal = 28.dp)
-            .padding(bottom = 10.dp)
+        modifier      = Modifier.padding(horizontal = 28.dp).padding(bottom = 10.dp)
     )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Modern Permission Row
+// Permission Row
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun ModernPermissionRow(
-    label: String,
-    granted: Boolean,
-    onRequest: () -> Unit,
-    isWarning: Boolean = false,
-    subtitle: String? = null
+    label: String, granted: Boolean, onRequest: () -> Unit,
+    isWarning: Boolean = false, subtitle: String? = null
 ) {
     val bgColor = when {
         granted   -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
@@ -506,71 +477,91 @@ private fun ModernPermissionRow(
         isWarning -> MaterialTheme.colorScheme.tertiary
         else      -> MaterialTheme.colorScheme.error
     }
-
-    Surface(
-        shape    = RoundedCornerShape(16.dp),
-        color    = bgColor,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier              = Modifier.padding(16.dp),
-            verticalAlignment     = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    painter           = painterResource(
-                        if (granted) R.drawable.ic_check_circle else R.drawable.ic_circle_outline
-                    ),
-                    contentDescription = null,
-                    modifier          = Modifier.size(22.dp),
-                    tint              = iconTint
-                )
+    Surface(shape = RoundedCornerShape(16.dp), color = bgColor, modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Icon(painter = painterResource(if (granted) R.drawable.ic_check_circle else R.drawable.ic_circle_outline), contentDescription = null, modifier = Modifier.size(22.dp), tint = iconTint)
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    // Subtitle eksplisit
-                    if (subtitle != null) {
-                        Text(
-                            subtitle,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (granted) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.tertiary
-                        )
-                    } else if (isWarning && !granted) {
-                        Text(
-                            stringResource(R.string.battery_optimized),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary
-                        )
-                    } else if (granted && isWarning) {
-                        Text(
-                            stringResource(R.string.battery_not_optimized),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                    Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = if (granted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary)
+                    else if (isWarning && !granted) Text(stringResource(R.string.battery_optimized), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                    else if (granted && isWarning) Text(stringResource(R.string.battery_not_optimized), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            if (!granted) { Spacer(Modifier.width(8.dp)); FilledTonalButton(onClick = onRequest, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp), modifier = Modifier.height(34.dp)) { Text(stringResource(R.string.action_activate), style = MaterialTheme.typography.labelMedium) } }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Appearance Section — shape, solid color, border
+// (color picker dikontrol dari parent via onColorRequest)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun AppearanceSection(settings: SettingsRepository, onColorRequest: (String) -> Unit) {
+    var shape         by remember { mutableStateOf(settings.buttonShape) }
+    var outerColor    by remember { mutableStateOf(Color(settings.outerColor)) }
+    var innerColor    by remember { mutableStateOf(Color(settings.innerColor)) }
+    var borderEnabled by remember { mutableStateOf(settings.borderEnabled) }
+    var borderColor   by remember { mutableStateOf(Color(settings.borderColor)) }
+    var borderWidth   by remember { mutableIntStateOf(settings.borderWidthDp) }
+
+    // Sinkronisasi ulang setelah color picker tutup
+    LaunchedEffect(settings.outerColor)  { outerColor  = Color(settings.outerColor) }
+    LaunchedEffect(settings.innerColor)  { innerColor  = Color(settings.innerColor) }
+    LaunchedEffect(settings.borderColor) { borderColor = Color(settings.borderColor) }
+
+    ModernCard {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            ButtonPreview(shape, outerColor, innerColor, borderEnabled, borderColor, borderWidth)
+        }
+        Spacer(Modifier.height(24.dp))
+
+        // Shape
+        SettingRow(label = stringResource(R.string.label_shape)) {
+            SingleChoiceSegmentedButtonRow {
+                listOf(
+                    SettingsRepository.SHAPE_CIRCLE       to stringResource(R.string.shape_circle),
+                    SettingsRepository.SHAPE_ROUNDED_RECT to stringResource(R.string.shape_rounded)
+                ).forEachIndexed { i, (v, l) ->
+                    SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 2), onClick = { shape = v; settings.buttonShape = v }, selected = shape == v) {
+                        Text(l, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
-            if (!granted) {
-                Spacer(Modifier.width(8.dp))
-                FilledTonalButton(
-                    onClick        = onRequest,
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    modifier       = Modifier.height(34.dp)
-                ) {
-                    Text(
-                        stringResource(R.string.action_activate),
-                        style = MaterialTheme.typography.labelMedium
-                    )
+        }
+
+        Spacer(Modifier.height(16.dp))
+        ModernDivider()
+        Spacer(Modifier.height(16.dp))
+
+        Text(stringResource(R.string.label_colors), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(10.dp))
+        ColorChip(label = stringResource(R.string.label_outer_color), color = outerColor) { onColorRequest("outer") }
+        Spacer(Modifier.height(8.dp))
+        ColorChip(label = stringResource(R.string.label_inner_color), color = innerColor) { onColorRequest("inner") }
+
+        Spacer(Modifier.height(16.dp))
+        ModernDivider()
+        Spacer(Modifier.height(16.dp))
+
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+            Text(stringResource(R.string.label_border), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Switch(checked = borderEnabled, onCheckedChange = { borderEnabled = it; settings.borderEnabled = it })
+        }
+
+        AnimatedVisibility(visible = borderEnabled, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+            Column {
+                Spacer(Modifier.height(12.dp))
+                ColorChip(label = stringResource(R.string.label_border_color), color = borderColor) { onColorRequest("border") }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text(stringResource(R.string.label_border_width), style = MaterialTheme.typography.bodyMedium)
+                    Text("${borderWidth}dp", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
+                Slider(value = borderWidth.toFloat(), onValueChange = { borderWidth = it.roundToInt() }, onValueChangeFinished = { settings.borderWidthDp = borderWidth }, valueRange = 1f..8f, steps = 6, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -581,31 +572,18 @@ private fun ModernPermissionRow(
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun MenuThemeSection(settings: SettingsRepository) {
+private fun MenuThemeSection(settings: SettingsRepository, onColorRequest: (String) -> Unit) {
     var theme       by remember { mutableStateOf(settings.menuTheme) }
     var customColor by remember { mutableStateOf(Color(settings.menuCustomColor)) }
-    var showPicker  by remember { mutableStateOf(false) }
 
-    if (showPicker) {
-        ColorPickerDialog(
-            initial   = customColor,
-            onDismiss = { showPicker = false },
-            onConfirm = { picked ->
-                customColor = picked
-                settings.menuCustomColor = picked.toArgb()
-                showPicker = false
-            }
-        )
-    }
+    LaunchedEffect(settings.menuCustomColor) { customColor = Color(settings.menuCustomColor) }
 
     ModernCard {
-        // Preview mini menu
         MenuThemePreview(theme = theme, customColor = customColor)
         Spacer(Modifier.height(20.dp))
         ModernDivider()
         Spacer(Modifier.height(16.dp))
 
-        // 4 pilihan tema
         val themes = listOf(
             SettingsRepository.THEME_SYSTEM to stringResource(R.string.theme_system),
             SettingsRepository.THEME_DARK   to stringResource(R.string.theme_dark),
@@ -616,65 +594,30 @@ private fun MenuThemeSection(settings: SettingsRepository) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             themes.forEach { (value, label) ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            theme = value
-                            settings.menuTheme = value
-                        }
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .clickable { theme = value; settings.menuTheme = value }
                         .padding(horizontal = 4.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Color dot preview
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    when (value) {
-                                        SettingsRepository.THEME_DARK   -> Color(0xFF16161A)
-                                        SettingsRepository.THEME_LIGHT  -> Color(0xFFF2F2F7)
-                                        SettingsRepository.THEME_CUSTOM -> customColor
-                                        else -> MaterialTheme.colorScheme.primaryContainer
-                                    }
-                                )
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                    RoundedCornerShape(8.dp))
-                        )
+                        Box(modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(
+                            when (value) {
+                                SettingsRepository.THEME_DARK   -> Color(0xFF16161A)
+                                SettingsRepository.THEME_LIGHT  -> Color(0xFFF2F2F7)
+                                SettingsRepository.THEME_CUSTOM -> customColor
+                                else -> MaterialTheme.colorScheme.primaryContainer
+                            }
+                        ).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp)))
                         Spacer(Modifier.width(14.dp))
-                        Text(
-                            text       = label,
-                            style      = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
-                    RadioButton(
-                        selected = theme == value,
-                        onClick  = { theme = value; settings.menuTheme = value }
-                    )
+                    RadioButton(selected = theme == value, onClick = { theme = value; settings.menuTheme = value })
                 }
-
-                // Custom color picker — muncul hanya saat custom dipilih
                 if (value == SettingsRepository.THEME_CUSTOM) {
-                    AnimatedVisibility(
-                        visible = theme == SettingsRepository.THEME_CUSTOM,
-                        enter   = fadeIn() + expandVertically(),
-                        exit    = fadeOut() + shrinkVertically()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 42.dp, bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            ColorChip(
-                                label   = stringResource(R.string.label_menu_bg_color),
-                                color   = customColor,
-                                onClick = { showPicker = true }
-                            )
+                    AnimatedVisibility(visible = theme == SettingsRepository.THEME_CUSTOM, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(start = 42.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            ColorChip(label = stringResource(R.string.label_menu_bg_color), color = customColor) { onColorRequest("menuCustom") }
                         }
                     }
                 }
@@ -692,42 +635,17 @@ private fun MenuThemePreview(theme: String, customColor: Color) {
         SettingsRepository.THEME_CUSTOM -> customColor
         else -> if (isDarkTheme) Color(0xFF16161A) else Color(0xFFF2F2F7)
     }
-    val isDark = when (theme) {
-        SettingsRepository.THEME_LIGHT  -> false
-        SettingsRepository.THEME_CUSTOM -> false
-        else -> true
-    }
-    val tileColor   = if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.06f)
-    val textColor   = if (isDark) Color.White else Color(0xFF141414)
+    val isDark = theme != SettingsRepository.THEME_LIGHT
+    val tileColor = if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.06f)
 
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .width(200.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(panelColor)
-                .padding(12.dp)
-        ) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(Modifier.width(200.dp).clip(RoundedCornerShape(20.dp)).background(panelColor).padding(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 repeat(2) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         repeat(3) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(tileColor),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(tileColor.copy(alpha = if (isDark) 0.4f else 0.15f))
-                                )
+                            Box(Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(tileColor), contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(20.dp).clip(RoundedCornerShape(6.dp)).background(tileColor.copy(alpha = if (isDark) 0.4f else 0.15f)))
                             }
                         }
                     }
@@ -738,295 +656,7 @@ private fun MenuThemePreview(theme: String, customColor: Color) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Appearance Section
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun AppearanceSection(
-    settings: SettingsRepository,
-    encodeImage: (Uri) -> String?,
-    getInstalledApps: () -> List<AppInfo> = { emptyList() }
-) {
-    var shape         by remember { mutableStateOf(settings.buttonShape) }
-    var outerColor    by remember { mutableStateOf(Color(settings.outerColor)) }
-    var innerColor    by remember { mutableStateOf(Color(settings.innerColor)) }
-    var borderEnabled by remember { mutableStateOf(settings.borderEnabled) }
-    var borderColor   by remember { mutableStateOf(Color(settings.borderColor)) }
-    var borderWidth   by remember { mutableIntStateOf(settings.borderWidthDp) }
-    var colorTarget   by remember { mutableStateOf<String?>(null) }
-
-    // Icon custom state
-    var iconBase64    by remember { mutableStateOf(settings.buttonIconBase64) }
-    var iconShape     by remember { mutableStateOf(settings.buttonIconShape) }
-    var bgTransparent by remember { mutableStateOf(settings.buttonBackgroundTransparent) }
-    var showAppIconPicker by remember { mutableStateOf(false) }
-    var apps          by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
-
-    // Launcher untuk pilih gambar/GIF dari galeri
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri ?: return@rememberLauncherForActivityResult
-        val encoded = encodeImage(uri)
-        if (encoded != null) {
-            iconBase64 = encoded
-            settings.buttonIconBase64 = encoded
-        }
-    }
-
-    // Load apps saat picker dibuka
-    LaunchedEffect(showAppIconPicker) {
-        if (showAppIconPicker && apps.isEmpty()) {
-            apps = getInstalledApps()
-        }
-    }
-
-    if (showAppIconPicker) {
-        AppPickerDialog(
-            apps = apps,
-            onDismiss = { showAppIconPicker = false },
-            onPick = { app ->
-                val encoded = app.icon?.let { bmp ->
-                    val out = ByteArrayOutputStream()
-                    bmp.compress(Bitmap.CompressFormat.PNG, 90, out)
-                    Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
-                }
-                if (encoded != null) {
-                    iconBase64 = encoded
-                    settings.buttonIconBase64 = encoded
-                }
-                showAppIconPicker = false
-            }
-        )
-    }
-
-    colorTarget?.let { target ->
-        val cur = when (target) { "outer" -> outerColor; "inner" -> innerColor; else -> borderColor }
-        ColorPickerDialog(initial = cur, onDismiss = { colorTarget = null }, onConfirm = { picked ->
-            when (target) {
-                "outer"  -> { outerColor = picked; settings.outerColor = picked.toArgb() }
-                "inner"  -> { innerColor = picked; settings.innerColor = picked.toArgb() }
-                "border" -> { borderColor = picked; settings.borderColor = picked.toArgb() }
-            }
-            colorTarget = null
-        })
-    }
-
-    ModernCard {
-        // Live preview
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            ButtonPreview(
-                shape         = shape,
-                outerColor    = outerColor,
-                innerColor    = innerColor,
-                borderEnabled = borderEnabled,
-                borderColor   = borderColor,
-                borderWidthDp = borderWidth,
-                iconBase64    = iconBase64,
-                iconShape     = iconShape,
-                bgTransparent = bgTransparent
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // Shape
-        SettingRow(label = stringResource(R.string.label_shape)) {
-            SingleChoiceSegmentedButtonRow {
-                listOf(SettingsRepository.SHAPE_CIRCLE to stringResource(R.string.shape_circle),
-                    SettingsRepository.SHAPE_ROUNDED_RECT to stringResource(R.string.shape_rounded))
-                    .forEachIndexed { i, (v, l) ->
-                        SegmentedButton(
-                            shape    = SegmentedButtonDefaults.itemShape(i, 2),
-                            onClick  = { shape = v; settings.buttonShape = v },
-                            selected = shape == v
-                        ) { Text(l, style = MaterialTheme.typography.labelMedium) }
-                    }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-        ModernDivider()
-        Spacer(Modifier.height(16.dp))
-
-        // Colors
-        Text(stringResource(R.string.label_colors),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(10.dp))
-
-        ColorChip(label = stringResource(R.string.label_outer_color), color = outerColor) { colorTarget = "outer" }
-        Spacer(Modifier.height(8.dp))
-        ColorChip(label = stringResource(R.string.label_inner_color), color = innerColor) { colorTarget = "inner" }
-
-        Spacer(Modifier.height(16.dp))
-        ModernDivider()
-        Spacer(Modifier.height(16.dp))
-
-        // Border
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text(stringResource(R.string.label_border), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            Switch(checked = borderEnabled, onCheckedChange = { borderEnabled = it; settings.borderEnabled = it })
-        }
-
-        AnimatedVisibility(
-            visible = borderEnabled,
-            enter   = fadeIn() + expandVertically(),
-            exit    = fadeOut() + shrinkVertically()
-        ) {
-            Column {
-                Spacer(Modifier.height(12.dp))
-                ColorChip(label = stringResource(R.string.label_border_color), color = borderColor) { colorTarget = "border" }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                    Text(stringResource(R.string.label_border_width), style = MaterialTheme.typography.bodyMedium)
-                    Text("${borderWidth}dp", style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                }
-                Slider(value = borderWidth.toFloat(), onValueChange = { borderWidth = it.roundToInt() },
-                    onValueChangeFinished = { settings.borderWidthDp = borderWidth },
-                    valueRange = 1f..8f, steps = 6, modifier = Modifier.fillMaxWidth())
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-        ModernDivider()
-        Spacer(Modifier.height(16.dp))
-
-        // ── Background transparent ────────────────────────────────────
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Column {
-                Text(stringResource(R.string.label_transparent_bg),
-                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Text(stringResource(R.string.label_transparent_bg_desc),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Switch(
-                checked = bgTransparent,
-                onCheckedChange = {
-                    bgTransparent = it
-                    settings.buttonBackgroundTransparent = it
-                }
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-        ModernDivider()
-        Spacer(Modifier.height(16.dp))
-
-        // ── Custom icon ───────────────────────────────────────────────
-        Text(stringResource(R.string.label_custom_icon),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(10.dp))
-
-        // Preview icon yang dipilih
-        if (!iconBase64.isNullOrEmpty()) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-
-            // imageLoader di-remember supaya tidak rebuild tiap recompose
-            val imageLoader = remember(context) {
-                coil.ImageLoader.Builder(context)
-                    .components {
-                        if (android.os.Build.VERSION.SDK_INT >= 28) {
-                            add(ImageDecoderDecoder.Factory())
-                        } else {
-                            add(GifDecoder.Factory())
-                        }
-                    }.build()
-            }
-
-            val bytes = remember(iconBase64) {
-                try { Base64.decode(iconBase64, Base64.NO_WRAP) } catch (_: Exception) { null }
-            }
-
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                if (bytes != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(bytes)
-                            .crossfade(true)
-                            .build(),
-                        imageLoader = imageLoader,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(
-                                when (iconShape) {
-                                    SettingsRepository.ICON_SHAPE_CIRCLE  -> CircleShape
-                                    SettingsRepository.ICON_SHAPE_ROUNDED -> RoundedCornerShape(20.dp)
-                                    else -> RoundedCornerShape(4.dp)
-                                }
-                            )
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-
-            // Bentuk icon
-            Text(stringResource(R.string.label_icon_shape),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(6.dp))
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                listOf(
-                    SettingsRepository.ICON_SHAPE_CIRCLE  to stringResource(R.string.shape_circle),
-                    SettingsRepository.ICON_SHAPE_ROUNDED to stringResource(R.string.shape_rounded),
-                    SettingsRepository.ICON_SHAPE_FILL    to stringResource(R.string.shape_fill)
-                ).forEachIndexed { i, (v, l) ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(i, 3),
-                        onClick = { iconShape = v; settings.buttonIconShape = v },
-                        selected = iconShape == v
-                    ) { Text(l, style = MaterialTheme.typography.labelSmall) }
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-
-            // Tombol hapus icon
-            OutlinedButton(
-                onClick = { iconBase64 = null; settings.buttonIconBase64 = null },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text(stringResource(R.string.action_remove_icon))
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-
-        // Tombol pilih icon
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = { galleryLauncher.launch("image/*") },
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(painter = painterResource(R.drawable.ic_screenshot),
-                    contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.action_pick_gallery),
-                    style = MaterialTheme.typography.labelSmall)
-            }
-            OutlinedButton(
-                onClick = { showAppIconPicker = true },
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(painter = painterResource(R.drawable.ic_open_app),
-                    contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.action_pick_app_icon),
-                    style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Size & Opacity Section  (slider bebas untuk size)
+// Size & Opacity
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -1035,57 +665,28 @@ private fun SizeOpacitySection(settings: SettingsRepository) {
     var sizeDp  by remember { mutableIntStateOf(settings.buttonSizeDp) }
 
     ModernCard {
-        // Opacity
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(stringResource(R.string.label_opacity), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            Text("${(opacity * 100).toInt()}%", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            Text("${(opacity * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         }
-        Slider(value = opacity, onValueChange = { opacity = it },
-            onValueChangeFinished = { settings.opacity = opacity },
-            valueRange = 0.3f..1.0f, modifier = Modifier.fillMaxWidth())
+        Slider(value = opacity, onValueChange = { opacity = it }, onValueChangeFinished = { settings.opacity = opacity }, valueRange = 0.3f..1.0f, modifier = Modifier.fillMaxWidth())
 
-        Spacer(Modifier.height(8.dp))
-        ModernDivider()
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp)); ModernDivider(); Spacer(Modifier.height(16.dp))
 
-        // Size — slider bebas
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Column {
                 Text(stringResource(R.string.label_size), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Text("${SettingsRepository.MIN_SIZE_DP}dp – ${SettingsRepository.MAX_SIZE_DP}dp",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${SettingsRepository.MIN_SIZE_DP}dp – ${SettingsRepository.MAX_SIZE_DP}dp", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Text("${sizeDp}dp",
-                    modifier   = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    style      = MaterialTheme.typography.labelLarge,
-                    color      = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.Bold)
+            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                Text("${sizeDp}dp", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
             }
         }
         Spacer(Modifier.height(4.dp))
-        Slider(
-            value                = sizeDp.toFloat(),
-            onValueChange        = { sizeDp = it.roundToInt() },
-            onValueChangeFinished = { settings.buttonSizeDp = sizeDp },
-            valueRange           = SettingsRepository.MIN_SIZE_DP.toFloat()..SettingsRepository.MAX_SIZE_DP.toFloat(),
-            modifier             = Modifier.fillMaxWidth()
-        )
-
-        // Quick presets
+        Slider(value = sizeDp.toFloat(), onValueChange = { sizeDp = it.roundToInt() }, onValueChangeFinished = { settings.buttonSizeDp = sizeDp }, valueRange = SettingsRepository.MIN_SIZE_DP.toFloat()..SettingsRepository.MAX_SIZE_DP.toFloat(), modifier = Modifier.fillMaxWidth())
         Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
             listOf(40 to "S", 56 to "M", 72 to "L", 88 to "XL").forEach { (dp, label) ->
-                FilterChip(
-                    selected = sizeDp == dp,
-                    onClick  = { sizeDp = dp; settings.buttonSizeDp = dp },
-                    label    = { Text(label, style = MaterialTheme.typography.labelSmall) },
-                    modifier = Modifier.weight(1f)
-                )
+                FilterChip(selected = sizeDp == dp, onClick = { sizeDp = dp; settings.buttonSizeDp = dp }, label = { Text(label, style = MaterialTheme.typography.labelSmall) }, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -1101,47 +702,20 @@ private fun GesturesSection(settings: SettingsRepository) {
     var showPicker      by remember { mutableStateOf(false) }
 
     if (showPicker) {
-        ActionPickerDialog(
-            onDismiss = { showPicker = false },
-            onPick    = { action ->
-                longPressAction = action
-                settings.longPressAction = action
-                showPicker = false
-            }
-        )
+        ActionPickerDialog(onDismiss = { showPicker = false }, onPick = { action ->
+            longPressAction = action; settings.longPressAction = action; showPicker = false
+        })
     }
 
     ModernCard {
-        // Single tap — fixed, tidak bisa diubah
-        GestureRow(
-            icon    = R.drawable.ic_home,
-            gesture = stringResource(R.string.label_single_tap),
-            action  = stringResource(R.string.gesture_open_menu),
-            locked  = true,
-            onClick = {}
-        )
-
+        GestureRow(icon = R.drawable.ic_home, gesture = stringResource(R.string.label_single_tap), action = stringResource(R.string.gesture_open_menu), locked = true, onClick = {})
         ModernDivider(Modifier.padding(vertical = 8.dp))
-
-        // Double tap — fixed lock screen
-        GestureRow(
-            icon    = R.drawable.ic_lock,
-            gesture = stringResource(R.string.label_double_tap),
-            action  = stringResource(R.string.gesture_lock_screen),
-            locked  = true,
-            onClick = {}
-        )
-
+        GestureRow(icon = R.drawable.ic_lock, gesture = stringResource(R.string.label_double_tap), action = stringResource(R.string.gesture_lock_screen), locked = true, onClick = {})
         ModernDivider(Modifier.padding(vertical = 8.dp))
-
-        // Long press — bisa dikonfigurasi
         GestureRow(
             icon    = R.drawable.ic_open_app,
             gesture = stringResource(R.string.label_long_press),
-            action  = longPressAction.name
-                .replace('_', ' ')
-                .lowercase()
-                .replaceFirstChar { it.uppercase() },
+            action  = longPressAction.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
             locked  = false,
             onClick = { showPicker = true }
         )
@@ -1149,147 +723,71 @@ private fun GesturesSection(settings: SettingsRepository) {
 }
 
 @Composable
-private fun GestureRow(
-    icon: Int,
-    gesture: String,
-    action: String,
-    locked: Boolean,
-    onClick: () -> Unit
-) {
+private fun GestureRow(icon: Int, gesture: String, action: String, locked: Boolean, onClick: () -> Unit) {
     Row(
-        modifier              = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
             .then(if (!locked) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 4.dp, horizontal = 2.dp),
-        verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier            = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        if (locked) MaterialTheme.colorScheme.surfaceVariant
-                        else MaterialTheme.colorScheme.primaryContainer
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter           = painterResource(icon),
-                    contentDescription = null,
-                    modifier          = Modifier.size(18.dp),
-                    tint              = if (locked)
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    else
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                )
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(if (locked) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                Icon(painter = painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp), tint = if (locked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer)
             }
             Spacer(Modifier.width(14.dp))
             Column {
-                Text(
-                    text       = gesture,
-                    style      = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text  = action,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (locked)
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    else
-                        MaterialTheme.colorScheme.primary
-                )
+                Text(gesture, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(action, style = MaterialTheme.typography.labelSmall, color = if (locked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
             }
         }
-        if (!locked) {
-            Icon(
-                painter           = painterResource(R.drawable.ic_quick_settings),
-                contentDescription = null,
-                modifier          = Modifier.size(16.dp),
-                tint              = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
-        } else {
-            // Kunci kecil untuk yang fixed
-            Icon(
-                painter           = painterResource(R.drawable.ic_lock),
-                contentDescription = null,
-                modifier          = Modifier.size(14.dp),
-                tint              = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-            )
-        }
+        if (!locked) Icon(painter = painterResource(R.drawable.ic_quick_settings), contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+        else Icon(painter = painterResource(R.drawable.ic_lock), contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Popup Slots Section — grid visual seperti favorit
+// Popup Slots & Favorites — tidak berubah dari versi sebelumnya
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun PopupSlotsSection(settings: SettingsRepository, getInstalledApps: () -> List<AppInfo>) {
-    var slots         by remember { mutableStateOf(settings.popupSlots) }
-    var editingSlot   by remember { mutableStateOf<Int?>(null) }
-    var showAppPicker by remember { mutableStateOf(false) }
+    var slots            by remember { mutableStateOf(settings.popupSlots) }
+    var editingSlot      by remember { mutableStateOf<Int?>(null) }
+    var showAppPicker    by remember { mutableStateOf(false) }
     var showActionPicker by remember { mutableStateOf(false) }
-    var apps          by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+    var apps             by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
 
-    LaunchedEffect(showAppPicker) {
-        if (showAppPicker && apps.isEmpty()) apps = getInstalledApps()
-    }
+    LaunchedEffect(showAppPicker) { if (showAppPicker && apps.isEmpty()) apps = getInstalledApps() }
 
     if (showAppPicker) {
         val idx = editingSlot ?: return@PopupSlotsSection
-        AppPickerDialog(apps = apps, onDismiss = { showAppPicker = false; editingSlot = null },
-            onPick = { app ->
-                val u = slots.toMutableList()
-                u[idx] = PopupSlot.fromShortcut(
-                    AppShortcut(packageName = app.packageName, label = app.label),
-                    slotIndex = idx, tileSize = slots[idx].tileSize)
-                slots = u; settings.popupSlots = u
-                showAppPicker = false; editingSlot = null
-            })
+        AppPickerDialog(apps = apps, onDismiss = { showAppPicker = false; editingSlot = null }, onPick = { app ->
+            val u = slots.toMutableList(); u[idx] = PopupSlot.fromShortcut(AppShortcut(packageName = app.packageName, label = app.label), slotIndex = idx, tileSize = slots[idx].tileSize)
+            slots = u; settings.popupSlots = u; showAppPicker = false; editingSlot = null
+        })
     }
-
     if (showActionPicker) {
         val idx = editingSlot ?: return@PopupSlotsSection
-        ActionPickerDialog(onDismiss = { showActionPicker = false; editingSlot = null },
-            onPick = { action ->
-                val u = slots.toMutableList()
-                u[idx] = PopupSlot.fromAction(action, idx, slots[idx].tileSize)
-                slots = u; settings.popupSlots = u
-                showActionPicker = false; editingSlot = null
-            })
+        ActionPickerDialog(onDismiss = { showActionPicker = false; editingSlot = null }, onPick = { action ->
+            val u = slots.toMutableList(); u[idx] = PopupSlot.fromAction(action, idx, slots[idx].tileSize)
+            slots = u; settings.popupSlots = u; showActionPicker = false; editingSlot = null
+        })
     }
 
     ModernCard {
-        Text("${slots.filter { !it.isEmpty }.size} / 9",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${slots.filter { !it.isEmpty }.size} / 9", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-
-        // Grid 3×3 visual — sama seperti favorites
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             slots.chunked(3).forEachIndexed { rowIdx, row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEachIndexed { colIdx, slot ->
                         val idx = rowIdx * 3 + colIdx
-                        PopupSlotCard(
-                            slot         = slot,
-                            modifier     = Modifier.weight(1f),
-                            onTap        = { editingSlot = idx },
-                            onSetAction  = { editingSlot = idx; showActionPicker = true },
-                            onSetApp     = { editingSlot = idx; showAppPicker = true },
-                            onClear      = {
-                                val u = slots.toMutableList()
-                                u[idx] = PopupSlot.empty(idx)
-                                slots = u; settings.popupSlots = u
-                            },
-                            onSizeChange = { size ->
-                                val u = slots.toMutableList()
-                                u[idx] = slot.copy(tileSize = size)
-                                slots = u; settings.popupSlots = u
-                            }
+                        PopupSlotCard(slot = slot, modifier = Modifier.weight(1f),
+                            onTap = { editingSlot = idx },
+                            onSetAction = { editingSlot = idx; showActionPicker = true },
+                            onSetApp = { editingSlot = idx; showAppPicker = true },
+                            onClear = { val u = slots.toMutableList(); u[idx] = PopupSlot.empty(idx); slots = u; settings.popupSlots = u },
+                            onSizeChange = { size -> val u = slots.toMutableList(); u[idx] = slot.copy(tileSize = size); slots = u; settings.popupSlots = u }
                         )
                     }
                 }
@@ -1299,212 +797,64 @@ private fun PopupSlotsSection(settings: SettingsRepository, getInstalledApps: ()
 }
 
 @Composable
-private fun PopupSlotCard(
-    slot: PopupSlot,
-    modifier: Modifier = Modifier,
-    onTap: () -> Unit,
-    onSetAction: () -> Unit,
-    onSetApp: () -> Unit,
-    onClear: () -> Unit,
-    onSizeChange: (Int) -> Unit
-) {
+private fun PopupSlotCard(slot: PopupSlot, modifier: Modifier = Modifier, onTap: () -> Unit, onSetAction: () -> Unit, onSetApp: () -> Unit, onClear: () -> Unit, onSizeChange: (Int) -> Unit) {
     var showOptions by remember { mutableStateOf(false) }
-
     if (showOptions) {
-        AlertDialog(
-            onDismissRequest = { showOptions = false },
-            title = {
-                Text(
-                    text = when (slot.type) {
-                        PopupSlot.SlotType.ACTION   -> slot.action?.name
-                            ?.replace('_', ' ')?.lowercase()?.replaceFirstChar { it.uppercase() }
-                            ?: stringResource(R.string.slot_empty)
-                        PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label ?: stringResource(R.string.slot_empty)
-                        else -> "Slot ${stringResource(R.string.slot_empty)}"
-                    }
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Tile size
-                    Text(stringResource(R.string.label_tile_size),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3)
-                            .forEachIndexed { i, (size, res) ->
-                                SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 3),
-                                    onClick = { onSizeChange(size) }, selected = slot.tileSize == size) {
-                                    Text(stringResource(res), style = MaterialTheme.typography.labelSmall)
-                                }
-                            }
-                    }
-                    // Change content
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { onSetAction(); showOptions = false },
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)) {
-                            Text(stringResource(R.string.slot_type_action),
-                                style = MaterialTheme.typography.labelSmall)
-                        }
-                        OutlinedButton(onClick = { onSetApp(); showOptions = false },
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)) {
-                            Text(stringResource(R.string.action_choose_app),
-                                style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
+        AlertDialog(onDismissRequest = { showOptions = false },
+            title = { Text(when (slot.type) { PopupSlot.SlotType.ACTION -> slot.action?.name?.replace('_', ' ')?.lowercase()?.replaceFirstChar { it.uppercase() } ?: stringResource(R.string.slot_empty); PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label ?: stringResource(R.string.slot_empty); else -> "Slot ${stringResource(R.string.slot_empty)}" }) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.label_tile_size), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) { listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3).forEachIndexed { i, (size, res) -> SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 3), onClick = { onSizeChange(size) }, selected = slot.tileSize == size) { Text(stringResource(res), style = MaterialTheme.typography.labelSmall) } } }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onSetAction(); showOptions = false }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)) { Text(stringResource(R.string.slot_type_action), style = MaterialTheme.typography.labelSmall) }
+                    OutlinedButton(onClick = { onSetApp(); showOptions = false }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)) { Text(stringResource(R.string.action_choose_app), style = MaterialTheme.typography.labelSmall) }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showOptions = false }) {
-                    Text(stringResource(R.string.action_apply))
-                }
-            },
-            dismissButton = {
-                if (!slot.isEmpty) {
-                    TextButton(onClick = { onClear(); showOptions = false },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error)) {
-                        Text(stringResource(R.string.action_clear_slot))
-                    }
-                }
-            }
+            } },
+            confirmButton = { TextButton(onClick = { showOptions = false }) { Text(stringResource(R.string.action_apply)) } },
+            dismissButton = { if (!slot.isEmpty) TextButton(onClick = { onClear(); showOptions = false }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.action_clear_slot)) } }
         )
     }
-
-    Surface(
-        shape    = RoundedCornerShape(16.dp),
-        color    = if (slot.isEmpty) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                   else MaterialTheme.colorScheme.secondaryContainer,
-        modifier = modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp))
-            .clickable { if (slot.isEmpty) onSetAction() else showOptions = true }
-    ) {
+    Surface(shape = RoundedCornerShape(16.dp), color = if (slot.isEmpty) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.secondaryContainer, modifier = modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp)).clickable { if (slot.isEmpty) onSetAction() else showOptions = true }) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (slot.isEmpty) {
-                // Slot kosong — tampil subtle tanpa tombol +
-                Icon(painter = painterResource(R.drawable.ic_circle_outline),
-                    contentDescription = null, modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
-            } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(6.dp)) {
-                    // Icon
-                    Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center) {
-                        when (slot.type) {
-                            PopupSlot.SlotType.ACTION -> slot.action?.let {
-                                Icon(painter = painterResource(it.iconRes()),
-                                    contentDescription = null, modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onPrimary)
-                            }
-                            PopupSlot.SlotType.SHORTCUT -> {
-                                Text(
-                                    text = (slot.shortcut?.label ?: slot.shortcut?.packageName ?: "?")
-                                        .firstOrNull()?.uppercase() ?: "?",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            else -> {}
-                        }
-                    }
-                    Spacer(Modifier.height(5.dp))
-                    // Label
-                    Text(
-                        text = when (slot.type) {
-                            PopupSlot.SlotType.ACTION -> slot.action?.name
-                                ?.replace('_', ' ')?.lowercase()?.replaceFirstChar { it.uppercase() } ?: ""
-                            PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label
-                                ?: slot.shortcut?.packageName?.substringAfterLast('.') ?: ""
-                            else -> ""
-                        },
-                        style    = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        color    = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    // Tile size badge
-                    if (slot.tileSize > 1) {
-                        Text("${slot.tileSize}×${slot.tileSize}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            fontSize = 9.sp)
+            if (slot.isEmpty) Icon(painter = painterResource(R.drawable.ic_circle_outline), contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
+            else Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(6.dp)) {
+                Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                    when (slot.type) {
+                        PopupSlot.SlotType.ACTION -> slot.action?.let { Icon(painter = painterResource(it.iconRes()), contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary) }
+                        PopupSlot.SlotType.SHORTCUT -> Text((slot.shortcut?.label ?: slot.shortcut?.packageName ?: "?").firstOrNull()?.uppercase() ?: "?", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        else -> {}
                     }
                 }
+                Spacer(Modifier.height(5.dp))
+                Text(text = when (slot.type) { PopupSlot.SlotType.ACTION -> slot.action?.name?.replace('_', ' ')?.lowercase()?.replaceFirstChar { it.uppercase() } ?: ""; PopupSlot.SlotType.SHORTCUT -> slot.shortcut?.label ?: slot.shortcut?.packageName?.substringAfterLast('.') ?: ""; else -> "" }, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                if (slot.tileSize > 1) Text("${slot.tileSize}×${slot.tileSize}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 9.sp)
             }
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Favorites Section
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun FavoritesSection(settings: SettingsRepository, getInstalledApps: () -> List<AppInfo>) {
-    var slots        by remember { mutableStateOf(settings.favoriteSlots) }
-    var editingSlot  by remember { mutableStateOf<Int?>(null) }
-    var showAppPicker  by remember { mutableStateOf(false) }
+    var slots           by remember { mutableStateOf(settings.favoriteSlots) }
+    var editingSlot     by remember { mutableStateOf<Int?>(null) }
+    var showAppPicker   by remember { mutableStateOf(false) }
     var showLabelEditor by remember { mutableStateOf(false) }
-    var apps         by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+    var apps            by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
 
-    LaunchedEffect(showAppPicker) {
-        if (showAppPicker && apps.isEmpty()) apps = getInstalledApps()
-    }
+    LaunchedEffect(showAppPicker) { if (showAppPicker && apps.isEmpty()) apps = getInstalledApps() }
 
-    if (showAppPicker) {
-        val idx = editingSlot ?: return@FavoritesSection
-        AppPickerDialog(apps = apps, onDismiss = { showAppPicker = false; editingSlot = null },
-            onPick = { app ->
-                val u = slots.toMutableList()
-                u[idx] = AppShortcut(packageName = app.packageName, label = app.label,
-                    tileSize = slots[idx].tileSize, slotIndex = idx)
-                slots = u; settings.favoriteSlots = u
-                showAppPicker = false; editingSlot = null
-            })
-    }
-
-    if (showLabelEditor) {
-        val idx = editingSlot ?: return@FavoritesSection
-        LabelEditorDialog(initial = slots[idx].label ?: "",
-            onDismiss = { showLabelEditor = false; editingSlot = null },
-            onConfirm = { label ->
-                val u = slots.toMutableList()
-                u[idx] = slots[idx].copy(label = label.ifEmpty { null })
-                slots = u; settings.favoriteSlots = u
-                showLabelEditor = false; editingSlot = null
-            })
-    }
+    if (showAppPicker) { val idx = editingSlot ?: return@FavoritesSection; AppPickerDialog(apps = apps, onDismiss = { showAppPicker = false; editingSlot = null }, onPick = { app -> val u = slots.toMutableList(); u[idx] = AppShortcut(packageName = app.packageName, label = app.label, tileSize = slots[idx].tileSize, slotIndex = idx); slots = u; settings.favoriteSlots = u; showAppPicker = false; editingSlot = null }) }
+    if (showLabelEditor) { val idx = editingSlot ?: return@FavoritesSection; LabelEditorDialog(initial = slots[idx].label ?: "", onDismiss = { showLabelEditor = false; editingSlot = null }, onConfirm = { label -> val u = slots.toMutableList(); u[idx] = slots[idx].copy(label = label.ifEmpty { null }); slots = u; settings.favoriteSlots = u; showLabelEditor = false; editingSlot = null }) }
 
     ModernCard {
-        Text("${slots.filter { !it.isEmpty }.size} / 9 apps",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("${slots.filter { !it.isEmpty }.size} / 9 apps", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-
-        // Grid 3×3
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             slots.chunked(3).forEachIndexed { rowIdx, row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEachIndexed { colIdx, slot ->
                         val idx = rowIdx * 3 + colIdx
-                        FavoriteSlotCard(
-                            slot         = slot,
-                            modifier     = Modifier.weight(1f),
-                            onClick      = { editingSlot = idx; showAppPicker = true },
-                            onEditLabel  = { editingSlot = idx; showLabelEditor = true },
-                            onClear      = {
-                                val u = slots.toMutableList()
-                                u[idx] = AppShortcut.empty(idx)
-                                slots = u; settings.favoriteSlots = u
-                            },
-                            onSizeChange = { size ->
-                                val u = slots.toMutableList()
-                                u[idx] = slots[idx].copy(tileSize = size)
-                                slots = u; settings.favoriteSlots = u
-                            }
-                        )
+                        FavoriteSlotCard(slot = slot, modifier = Modifier.weight(1f), onClick = { editingSlot = idx; showAppPicker = true }, onEditLabel = { editingSlot = idx; showLabelEditor = true }, onClear = { val u = slots.toMutableList(); u[idx] = AppShortcut.empty(idx); slots = u; settings.favoriteSlots = u }, onSizeChange = { size -> val u = slots.toMutableList(); u[idx] = slots[idx].copy(tileSize = size); slots = u; settings.favoriteSlots = u })
                     }
                 }
             }
@@ -1513,80 +863,22 @@ private fun FavoritesSection(settings: SettingsRepository, getInstalledApps: () 
 }
 
 @Composable
-private fun FavoriteSlotCard(
-    slot: AppShortcut, modifier: Modifier = Modifier,
-    onClick: () -> Unit, onEditLabel: () -> Unit,
-    onClear: () -> Unit, onSizeChange: (Int) -> Unit
-) {
+private fun FavoriteSlotCard(slot: AppShortcut, modifier: Modifier = Modifier, onClick: () -> Unit, onEditLabel: () -> Unit, onClear: () -> Unit, onSizeChange: (Int) -> Unit) {
     var showOptions by remember { mutableStateOf(false) }
-
     if (showOptions && !slot.isEmpty) {
-        AlertDialog(onDismissRequest = { showOptions = false },
-            title = { Text(slot.label ?: slot.packageName?.substringAfterLast('.') ?: "") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(stringResource(R.string.label_tile_size),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                        listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3)
-                            .forEachIndexed { i, (size, res) ->
-                                SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 3),
-                                    onClick = { onSizeChange(size) }, selected = slot.tileSize == size) {
-                                    Text(stringResource(res), style = MaterialTheme.typography.labelSmall)
-                                }
-                            }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { onEditLabel(); showOptions = false }) {
-                    Text(stringResource(R.string.action_edit_label))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { onClear(); showOptions = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                    Text(stringResource(R.string.action_clear_slot))
-                }
-            }
+        AlertDialog(onDismissRequest = { showOptions = false }, title = { Text(slot.label ?: slot.packageName?.substringAfterLast('.') ?: "") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { Text(stringResource(R.string.label_tile_size), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant); SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) { listOf(1 to R.string.tile_size_1x1, 2 to R.string.tile_size_2x2, 3 to R.string.tile_size_3x3).forEachIndexed { i, (size, res) -> SegmentedButton(shape = SegmentedButtonDefaults.itemShape(i, 3), onClick = { onSizeChange(size) }, selected = slot.tileSize == size) { Text(stringResource(res), style = MaterialTheme.typography.labelSmall) } } } } },
+            confirmButton = { TextButton(onClick = { onEditLabel(); showOptions = false }) { Text(stringResource(R.string.action_edit_label)) } },
+            dismissButton = { TextButton(onClick = { onClear(); showOptions = false }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.action_clear_slot)) } }
         )
     }
-
-    Surface(
-        shape    = RoundedCornerShape(16.dp),
-        color    = if (slot.isEmpty) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                   else MaterialTheme.colorScheme.secondaryContainer,
-        modifier = modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp))
-            .clickable { if (slot.isEmpty) onClick() else showOptions = true }
-    ) {
+    Surface(shape = RoundedCornerShape(16.dp), color = if (slot.isEmpty) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.secondaryContainer, modifier = modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp)).clickable { if (slot.isEmpty) onClick() else showOptions = true }) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (slot.isEmpty) {
-                Icon(painter = painterResource(R.drawable.ic_home),
-                    contentDescription = null, modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
-            } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(6.dp)) {
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primary),
-                        contentAlignment = Alignment.Center) {
-                        Text(
-                            text  = (slot.label ?: slot.packageName ?: "?")
-                                .firstOrNull()?.uppercase() ?: "?",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        text     = slot.label ?: slot.packageName?.substringAfterLast('.') ?: "",
-                        style    = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        color    = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
+            if (slot.isEmpty) Icon(painter = painterResource(R.drawable.ic_home), contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+            else Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(6.dp)) {
+                Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) { Text((slot.label ?: slot.packageName ?: "?").firstOrNull()?.uppercase() ?: "?", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold) }
+                Spacer(Modifier.height(5.dp))
+                Text(slot.label ?: slot.packageName?.substringAfterLast('.') ?: "", style = MaterialTheme.typography.labelSmall, maxLines = 1, color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
     }
@@ -1599,54 +891,22 @@ private fun FavoriteSlotCard(
 @Composable
 private fun AppPickerDialog(apps: List<AppInfo>, onDismiss: () -> Unit, onPick: (AppInfo) -> Unit) {
     var query by remember { mutableStateOf("") }
-    val filtered = remember(query, apps) {
-        if (query.isEmpty()) apps else apps.filter { it.label.contains(query, ignoreCase = true) }
-    }
-
+    val filtered = remember(query, apps) { if (query.isEmpty()) apps else apps.filter { it.label.contains(query, ignoreCase = true) } }
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.padding(20.dp).heightIn(max = 520.dp)) {
-                Text(stringResource(R.string.action_choose_app),
-                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.action_choose_app), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = query, onValueChange = { query = it },
-                    placeholder = { Text("Search…") }, singleLine = true,
-                    shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = query, onValueChange = { query = it }, placeholder = { Text("Search…") }, singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-
-                if (apps.isEmpty()) {
-                    Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(32.dp))
-                    }
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        items(filtered, key = { it.packageName }) { app ->
-                            Row(modifier = Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { onPick(app) }
-                                .padding(horizontal = 8.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                if (app.icon != null) {
-                                    Image(bitmap = app.icon.asImageBitmap(),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
-                                } else {
-                                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                        contentAlignment = Alignment.Center) {
-                                        Text(app.label.firstOrNull()?.uppercase() ?: "?",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                    }
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text(app.label, style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium)
-                                    Text(app.packageName, style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
+                if (apps.isEmpty()) Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(32.dp)) }
+                else androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items(filtered, key = { it.packageName }) { app ->
+                        Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onPick(app) }.padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (app.icon != null) Image(bitmap = app.icon.asImageBitmap(), contentDescription = null, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
+                            else Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) { Text(app.label.firstOrNull()?.uppercase() ?: "?", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer) }
+                            Spacer(Modifier.width(12.dp))
+                            Column { Text(app.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium); Text(app.packageName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                     }
                 }
@@ -1657,89 +917,27 @@ private fun AppPickerDialog(apps: List<AppInfo>, onDismiss: () -> Unit, onPick: 
 
 @Composable
 private fun ActionPickerDialog(onDismiss: () -> Unit, onPick: (MenuAction) -> Unit) {
-    // Kelompokkan action berdasarkan kategori
     val categories = listOf(
-        "Navigation" to listOf(
-            MenuAction.HOME, MenuAction.BACK, MenuAction.RECENTS,
-            MenuAction.LOCK, MenuAction.SCREENSHOT
-        ),
-        "Volume" to listOf(
-            MenuAction.VOLUME_UP, MenuAction.VOLUME_DOWN, MenuAction.VOLUME_PANEL
-        ),
-        "Sound & Mode" to listOf(
-            MenuAction.SILENT_MODE, MenuAction.VIBRATE_MODE
-        ),
-        "Connectivity" to listOf(
-            MenuAction.WIFI, MenuAction.CELLULAR, MenuAction.BLUETOOTH,
-            MenuAction.AIRPLANE_MODE
-        ),
-        "Tools" to listOf(
-            MenuAction.FLASHLIGHT, MenuAction.NOTIFICATIONS,
-            MenuAction.QUICK_SETTINGS, MenuAction.SYSTEM_PANEL
-        ),
-        "App" to listOf(
-            MenuAction.FAVORITES, MenuAction.OPEN_APP, MenuAction.HIDE_BUTTON
-        )
+        "Navigation" to listOf(MenuAction.HOME, MenuAction.BACK, MenuAction.RECENTS, MenuAction.LOCK, MenuAction.SCREENSHOT),
+        "Volume"     to listOf(MenuAction.VOLUME_UP, MenuAction.VOLUME_DOWN, MenuAction.VOLUME_PANEL),
+        "Sound & Mode" to listOf(MenuAction.SILENT_MODE, MenuAction.VIBRATE_MODE),
+        "Connectivity" to listOf(MenuAction.WIFI, MenuAction.CELLULAR, MenuAction.BLUETOOTH, MenuAction.AIRPLANE_MODE),
+        "Tools"      to listOf(MenuAction.FLASHLIGHT, MenuAction.NOTIFICATIONS, MenuAction.QUICK_SETTINGS, MenuAction.SYSTEM_PANEL),
+        "App"        to listOf(MenuAction.FAVORITES, MenuAction.OPEN_APP, MenuAction.HIDE_BUTTON)
     )
-
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface
-        ) {
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
             Column(modifier = Modifier.padding(20.dp).heightIn(max = 560.dp)) {
-                Text(
-                    stringResource(R.string.slot_type_action),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text(stringResource(R.string.slot_type_action), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     categories.forEach { (categoryName, actions) ->
-                        item {
-                            Text(
-                                text  = categoryName.uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
-                                modifier = Modifier.padding(
-                                    start = 4.dp, top = 12.dp, bottom = 4.dp
-                                )
-                            )
-                        }
+                        item { Text(categoryName.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 4.dp)) }
                         items(actions) { action ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { onPick(action) }
-                                    .padding(horizontal = 8.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    Modifier
-                                        .size(36.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(action.iconRes()),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
+                            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onPick(action) }.padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) { Icon(painter = painterResource(action.iconRes()), contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
                                 Spacer(Modifier.width(14.dp))
-                                Text(
-                                    text = action.name
-                                        .replace('_', ' ')
-                                        .lowercase()
-                                        .replaceFirstChar { it.uppercase() },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Text(action.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             }
                         }
                         item { ModernDivider(Modifier.padding(vertical = 4.dp)) }
@@ -1753,20 +951,15 @@ private fun ActionPickerDialog(onDismiss: () -> Unit, onPick: (MenuAction) -> Un
 @Composable
 private fun LabelEditorDialog(initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var text by remember { mutableStateOf(initial) }
-    AlertDialog(onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.action_edit_label)) },
-        text = {
-            OutlinedTextField(value = text, onValueChange = { text = it },
-                placeholder = { Text(stringResource(R.string.hint_custom_label)) },
-                singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
-        },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.action_edit_label)) },
+        text = { OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text(stringResource(R.string.hint_custom_label)) }, singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) },
         confirmButton = { TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.action_apply)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Color Picker Dialog
+// Color Picker Dialog — tidak berubah
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -1782,51 +975,27 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onConfirm: 
     val focus = LocalFocusManager.current
 
     val currentColor by remember(hue, saturation, brightness, alpha) {
-        derivedStateOf {
-            Color(android.graphics.Color.HSVToColor((alpha * 255).roundToInt(),
-                floatArrayOf(hue, saturation, brightness)))
-        }
+        derivedStateOf { Color(android.graphics.Color.HSVToColor((alpha * 255).roundToInt(), floatArrayOf(hue, saturation, brightness))) }
     }
     LaunchedEffect(currentColor) { hexInput = "%08X".format(currentColor.toArgb()); hexError = false }
 
-    AlertDialog(onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.title_color_picker)) },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.title_color_picker)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Preview
-                Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp))
-                    .background(Brush.horizontalGradient(listOf(Color.White, currentColor)))
-                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp)))
-
-                SliderRow(stringResource(R.string.label_hue), hue, 0f..360f, "${hue.roundToInt()}°",
-                    Brush.horizontalGradient(listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red))) { hue = it }
-                SliderRow(stringResource(R.string.label_saturation), saturation, 0f..1f, "${(saturation*100).roundToInt()}%",
-                    Brush.horizontalGradient(listOf(Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0f, brightness))),
-                        Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, brightness)))))) { saturation = it }
-                SliderRow(stringResource(R.string.label_brightness), brightness, 0f..1f, "${(brightness*100).roundToInt()}%",
-                    Brush.horizontalGradient(listOf(Color.Black,
-                        Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, 1f)))))) { brightness = it }
-                SliderRow(stringResource(R.string.label_alpha), alpha, 0f..1f, "${(alpha*100).roundToInt()}%",
-                    Brush.horizontalGradient(listOf(Color.Transparent, currentColor.copy(alpha = 1f)))) { alpha = it }
-
+                Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp)).background(Brush.horizontalGradient(listOf(Color.White, currentColor))).border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp)))
+                SliderRow(stringResource(R.string.label_hue), hue, 0f..360f, "${hue.roundToInt()}°", Brush.horizontalGradient(listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red))) { hue = it }
+                SliderRow(stringResource(R.string.label_saturation), saturation, 0f..1f, "${(saturation*100).roundToInt()}%", Brush.horizontalGradient(listOf(Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 0f, brightness))), Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, brightness)))))) { saturation = it }
+                SliderRow(stringResource(R.string.label_brightness), brightness, 0f..1f, "${(brightness*100).roundToInt()}%", Brush.horizontalGradient(listOf(Color.Black, Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, 1f)))))) { brightness = it }
+                SliderRow(stringResource(R.string.label_alpha), alpha, 0f..1f, "${(alpha*100).roundToInt()}%", Brush.horizontalGradient(listOf(Color.Transparent, currentColor.copy(alpha = 1f)))) { alpha = it }
                 HorizontalDivider()
                 OutlinedTextField(value = hexInput, onValueChange = { raw ->
-                    val clean = raw.uppercase().filter { it.isLetterOrDigit() }.take(8)
-                    hexInput = clean
+                    val clean = raw.uppercase().filter { it.isLetterOrDigit() }.take(8); hexInput = clean
                     if (clean.length == 6 || clean.length == 8) {
-                        try {
-                            val parsed = android.graphics.Color.parseColor("#$clean")
-                            val hsv = FloatArray(3); android.graphics.Color.colorToHSV(parsed, hsv)
-                            hue = hsv[0]; saturation = hsv[1]; brightness = hsv[2]
-                            alpha = if (clean.length == 8) (parsed ushr 24) / 255f else 1f
-                            hexError = false
-                        } catch (_: Exception) { hexError = true }
+                        try { val parsed = android.graphics.Color.parseColor("#$clean"); val hsv = FloatArray(3); android.graphics.Color.colorToHSV(parsed, hsv); hue = hsv[0]; saturation = hsv[1]; brightness = hsv[2]; alpha = if (clean.length == 8) (parsed ushr 24) / 255f else 1f; hexError = false } catch (_: Exception) { hexError = true }
                     } else { hexError = clean.isNotEmpty() }
-                }, label = { Text("HEX") }, isError = hexError, singleLine = true,
-                    shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth(),
+                }, label = { Text("HEX") }, isError = hexError, singleLine = true, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
-                    prefix = { Text("#") })
+                    keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }), prefix = { Text("#") })
             }
         },
         confirmButton = { TextButton(onClick = { onConfirm(currentColor) }) { Text(stringResource(R.string.action_apply)) } },
@@ -1835,21 +1004,12 @@ private fun ColorPickerDialog(initial: Color, onDismiss: () -> Unit, onConfirm: 
 }
 
 @Composable
-private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>,
-    valueText: String, trackBrush: Brush, onValueChange: (Float) -> Unit) {
+private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRange<Float>, valueText: String, trackBrush: Brush, onValueChange: (Float) -> Unit) {
     Column {
-        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(valueText, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-        }
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant); Text(valueText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) }
         Box(Modifier.fillMaxWidth()) {
-            Box(Modifier.fillMaxWidth().height(4.dp).align(Alignment.Center)
-                .padding(horizontal = 10.dp).clip(RoundedCornerShape(2.dp)).background(trackBrush))
-            Slider(value = value, onValueChange = onValueChange, valueRange = range,
-                modifier = Modifier.fillMaxWidth(),
-                colors = SliderDefaults.colors(activeTrackColor = Color.Transparent, inactiveTrackColor = Color.Transparent))
+            Box(Modifier.fillMaxWidth().height(4.dp).align(Alignment.Center).padding(horizontal = 10.dp).clip(RoundedCornerShape(2.dp)).background(trackBrush))
+            Slider(value = value, onValueChange = onValueChange, valueRange = range, modifier = Modifier.fillMaxWidth(), colors = SliderDefaults.colors(activeTrackColor = Color.Transparent, inactiveTrackColor = Color.Transparent))
         }
     }
 }
@@ -1860,12 +1020,7 @@ private fun SliderRow(label: String, value: Float, range: ClosedFloatingPointRan
 
 @Composable
 private fun ModernCard(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        shape           = RoundedCornerShape(20.dp),
-        color           = MaterialTheme.colorScheme.surface,
-        shadowElevation = 2.dp,
-        modifier        = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-    ) {
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
         Column(modifier = Modifier.padding(20.dp), content = content)
     }
 }
@@ -1877,96 +1032,27 @@ private fun ModernDivider(modifier: Modifier = Modifier) {
 
 @Composable
 private fun SettingRow(label: String, content: @Composable () -> Unit) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(6.dp))
-        content()
-    }
+    Column { Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant); Spacer(Modifier.height(6.dp)); content() }
 }
 
 @Composable
 private fun ColorChip(label: String, color: Color, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-        .clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp),
-        Arrangement.SpaceBetween, Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("#%06X".format(color.toArgb() and 0xFFFFFF),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
-            Box(Modifier.size(28.dp).clip(CircleShape).background(color)
-                .border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape))
+            Text("#%06X".format(color.toArgb() and 0xFFFFFF), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+            Box(Modifier.size(28.dp).clip(CircleShape).background(color).border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape))
         }
     }
 }
 
 @Composable
-private fun ButtonPreview(
-    shape: String,
-    outerColor: Color,
-    innerColor: Color,
-    borderEnabled: Boolean,
-    borderColor: Color,
-    borderWidthDp: Int,
-    iconBase64: String? = null,
-    iconShape: String = SettingsRepository.ICON_SHAPE_CIRCLE,
-    bgTransparent: Boolean = false
-) {
+private fun ButtonPreview(shape: String, outerColor: Color, innerColor: Color, borderEnabled: Boolean, borderColor: Color, borderWidthDp: Int) {
     val size   = 72.dp
     val inner  = (72 * 0.38f).dp
-    val corner: Dp = when (shape) {
-        SettingsRepository.SHAPE_CIRCLE       -> 36.dp
-        SettingsRepository.SHAPE_ROUNDED_RECT -> (72 * 0.28f).dp
-        else -> 36.dp
-    }
+    val corner: Dp = when (shape) { SettingsRepository.SHAPE_CIRCLE -> 36.dp; SettingsRepository.SHAPE_ROUNDED_RECT -> (72 * 0.28f).dp; else -> 36.dp }
     val s = RoundedCornerShape(corner)
-
-    // Background: transparan atau warna
-    val bgColor = if (bgTransparent) Color.Transparent else outerColor
-
-    Box(
-        modifier = Modifier
-            .size(size)
-            .then(if (!bgTransparent) Modifier.shadow(8.dp, s) else Modifier)
-            .clip(s)
-            .background(bgColor, s)
-            .then(if (borderEnabled) Modifier.border(borderWidthDp.dp, borderColor, s) else Modifier),
-        contentAlignment = Alignment.Center
-    ) {
-        if (!iconBase64.isNullOrEmpty()) {
-            // Tampilkan icon custom
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val imageLoader = remember(context) {
-                coil.ImageLoader.Builder(context).components {
-                    if (android.os.Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory())
-                    else add(GifDecoder.Factory())
-                }.build()
-            }
-            val bytes = remember(iconBase64) {
-                try { Base64.decode(iconBase64, Base64.NO_WRAP) } catch (_: Exception) { null }
-            }
-            val iconSize = when (iconShape) {
-                SettingsRepository.ICON_SHAPE_FILL -> size
-                else -> (72 * 0.72f).dp
-            }
-            val iconClip = when (iconShape) {
-                SettingsRepository.ICON_SHAPE_CIRCLE  -> CircleShape
-                SettingsRepository.ICON_SHAPE_ROUNDED -> RoundedCornerShape(12.dp)
-                else -> RoundedCornerShape(4.dp)
-            }
-            if (bytes != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context).data(bytes).crossfade(true).build(),
-                    imageLoader = imageLoader,
-                    contentDescription = null,
-                    modifier = Modifier.size(iconSize).clip(iconClip)
-                )
-            }
-        } else {
-            // Default dot
-            Box(Modifier.size(inner).clip(CircleShape).background(innerColor, CircleShape))
-        }
+    Box(Modifier.size(size).shadow(8.dp, s).clip(s).background(outerColor, s).then(if (borderEnabled) Modifier.border(borderWidthDp.dp, borderColor, s) else Modifier), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(inner).clip(CircleShape).background(innerColor, CircleShape))
     }
 }

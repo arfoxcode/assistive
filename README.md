@@ -45,6 +45,12 @@ Perfect for:
 - ✨ **Smooth animations** — expand from button position with spring effect
 - 🎨 **Full customization** — shape, color, border, size, opacity
 
+### Floating Button Customization (v2.95)
+- 🎨 **Gradient background** — Linear (4 directions) or Radial
+- 🖼️ **15 preset icons** — Star, Bolt, Heart, Rocket, Shield, and more
+- 📷 **Custom icon** — upload any image from gallery (auto-cropped to 256×256px)
+- ✨ **Idle animations** — Pulse, Breathing, Bounce, Glow
+
 ### Menu Actions (21 actions available)
 | Category | Actions |
 |---|---|

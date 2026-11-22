@@ -29,7 +29,6 @@ android {
                 val keyAliasEnv  = System.getenv("KEY_ALIAS")
                 val storePass    = System.getenv("STORE_PASSWORD")
                 val keyPass      = System.getenv("KEY_PASSWORD")
-
                 if (keystorePath != null && keyAliasEnv != null && storePass != null && keyPass != null) {
                     storeFile     = file(keystorePath)
                     keyAlias      = keyAliasEnv
@@ -44,8 +43,8 @@ android {
         applicationId = "arfoxcode.joaohouto.assistivemenutool"
         minSdk = 24
         targetSdk = 36
-        versionCode = 8
-        versionName = "2.93"
+        versionCode = 9
+        versionName = "2.95"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -68,7 +67,6 @@ android {
     buildFeatures {
         compose = true
     }
-
     dependenciesInfo {
         includeInApk = false
         includeInBundle = false
@@ -76,10 +74,6 @@ android {
 }
 
 dependencies {
-    // Coil untuk load gambar dan GIF
-    implementation("io.coil-kt:coil-compose:2.6.0")
-    implementation("io.coil-kt:coil-gif:2.6.0")
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
